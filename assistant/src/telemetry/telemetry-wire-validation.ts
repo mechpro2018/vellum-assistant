@@ -2,16 +2,16 @@
  * Pre-flush validation of outgoing telemetry events against the
  * platform-generated wire schemas (`telemetry-wire.generated.ts`).
  *
- * The platform ingest endpoint rejects individual events that violate its
- * serializer bounds and skips event types it has no serializer for. Both are
- * silent from the daemon's point of view (the batch still 2xxes). This module
- * reports those events before each POST so callers can drop schema failures.
+ * These events are public analytics produced on the client, which is the
+ * source of truth for what happened. A local schema check cannot prove a
+ * payload is authentic, so validation does not filter the batch. The platform
+ * ingest endpoint still skips events that violate its serializers or that
+ * name an unknown type. Both are silent from the daemon's point of view (the
+ * batch still 2xxes). This module logs those skips before each POST.
  *
- * Callers drop events that fail their wire schema before POST. Unknown types
- * stay sendable: a lagging local wire copy must not purge events the server
- * would accept. This module never mutates the input and never substitutes the
- * `.trim()`-transformed parse output for the original events. The server
- * remains the authority on what it accepts.
+ * Observability only: validation never mutates, filters, or blocks a batch.
+ * The `.trim()`-transformed parse output is never substituted for the
+ * original events.
  */
 
 import { z } from "zod";
@@ -110,11 +110,6 @@ interface WireValidationResult {
   invalid: number;
   /** Distinct event types with no wire schema. The server drops these. */
   unknownTypes: string[];
-  /**
-   * Parallel to the input. False only when the event's type has a wire schema
-   * and the event fails it. Unknown types are sendable.
-   */
-  sendable: boolean[];
 }
 
 /**
@@ -126,9 +121,9 @@ interface WireValidationResult {
  * `daemon_event_id`: traces/claims can hold PII, and activation-funnel ids
  * embed the onboarding session id.
  *
- * Does not mutate `events`. `sendable[i]` is false when that event fails its
- * wire schema; callers omit those events from the POST and do not retry them.
- * Unknown types are sendable.
+ * Never mutates, filters, or blocks: callers send the batch unchanged
+ * regardless of the result. Public analytics events originate on the client,
+ * so this check is not an authenticity control.
  */
 export function validateWireEvents(
   events: readonly { type: string }[],
@@ -137,12 +132,10 @@ export function validateWireEvents(
   let checked = 0;
   let invalid = 0;
   const unknownTypes = new Set<string>();
-  const sendable: boolean[] = [];
   for (const event of events) {
     const schema = wireSchemaByType.get(event.type);
     if (!schema) {
       unknownTypes.add(event.type);
-      sendable.push(true);
       if (!warnedUnknownTypes.has(event.type)) {
         warnedUnknownTypes.add(event.type);
         log.warn(
@@ -156,18 +149,15 @@ export function validateWireEvents(
     const result = schema.safeParse(event);
     if (!result.success) {
       invalid += 1;
-      sendable.push(false);
       const issues = result.error.issues.map((issue) => ({
         path: sanitizeIssuePath(issue.path),
         code: issue.code,
       }));
       log.warn(
         { eventType: event.type, issues },
-        "telemetry event fails platform wire contract; dropping it before send",
+        "telemetry event fails platform wire contract; server will silently drop it",
       );
-    } else {
-      sendable.push(true);
     }
   }
-  return { checked, invalid, unknownTypes: [...unknownTypes], sendable };
+  return { checked, invalid, unknownTypes: [...unknownTypes] };
 }

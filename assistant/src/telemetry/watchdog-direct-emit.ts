@@ -73,12 +73,9 @@ export async function emitWatchdogEventDirect(
       assistant_version: APP_VERSION,
     };
 
-    // Drop a schema-invalid event before POST. There is no outbox to retry
-    // from on this path; the warning is the count.
-    const validation = validateWireEvents([event], log);
-    if (!validation.sendable[0]) {
-      return;
-    }
+    // Observational only. The event is still POSTed. A local schema check
+    // does not establish that a client-originated analytics payload is authentic.
+    validateWireEvents([event], log);
 
     const organizationId = getPlatformOrganizationId() || undefined;
     const userId = getPlatformUserId() || undefined;

@@ -1,9 +1,9 @@
 /**
  * Tests for pre-flush telemetry wire validation.
  *
- * The function counts and warns. It does not mutate the input. `sendable` is
- * false for schema failures and true for unknown types. Warn payloads carry
- * the event type and issue `{ path, code }` shapes only, never field values.
+ * The function counts and warns. It does not mutate, filter, or block the
+ * batch. Warn payloads carry the event type and issue `{ path, code }` shapes
+ * only, never field values.
  * `daemon_event_id` is a field value too: activation-funnel ids embed the
  * onboarding session id (traces/claims can hold PII). Issue paths are
  * sanitized as well: dynamic record keys (e.g. `client` bag keys) are
@@ -53,7 +53,6 @@ describe("validateWireEvents", () => {
       checked: wireEventSamples.length,
       invalid: 0,
       unknownTypes: [],
-      sendable: wireEventSamples.map(() => true),
     });
     expect(warnCalls).toHaveLength(0);
   });
@@ -78,12 +77,7 @@ describe("validateWireEvents", () => {
     };
 
     const result = validateWireEvents([invalidTurn, invalidLifecycle], stubLog);
-    expect(result).toEqual({
-      checked: 2,
-      invalid: 2,
-      unknownTypes: [],
-      sendable: [false, false],
-    });
+    expect(result).toEqual({ checked: 2, invalid: 2, unknownTypes: [] });
     expect(warnCalls).toHaveLength(2);
 
     for (const call of warnCalls) {
@@ -127,12 +121,7 @@ describe("validateWireEvents", () => {
     };
 
     const result = validateWireEvents([invalidTurn], stubLog);
-    expect(result).toEqual({
-      checked: 1,
-      invalid: 1,
-      unknownTypes: [],
-      sendable: [false],
-    });
+    expect(result).toEqual({ checked: 1, invalid: 1, unknownTypes: [] });
     expect(warnCalls).toHaveLength(1);
 
     const bag = warnCalls[0][0] as { issues: Array<{ path: string }> };
@@ -159,7 +148,6 @@ describe("validateWireEvents", () => {
       checked: 0,
       invalid: 0,
       unknownTypes: ["speculative_future_event"],
-      sendable: [true],
     });
     expect(second.unknownTypes).toEqual(["speculative_future_event"]);
 
