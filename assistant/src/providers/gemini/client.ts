@@ -18,7 +18,10 @@ import {
   keepFileAsWorkspaceRef,
 } from "../content-block-size.js";
 import { fileBlockToProviderText } from "../file-block-text.js";
-import { unsignedThoughtSignatureFallback } from "../gemini-thought-signature.js";
+import {
+  GEMINI_3_UNSIGNED_TOOL_CALL_THOUGHT_SIGNATURE,
+  unsignedThoughtSignatureFallback,
+} from "../gemini-thought-signature.js";
 import {
   isMalformedToolCallFinishReason,
   malformedToolCallError,
@@ -344,6 +347,39 @@ export function deriveGeminiReason(error: ApiError): ProviderErrorReason {
 
 const log = getLogger("gemini-client");
 
+/** A 400 that names the thought signature, e.g. "Corrupted thought signature." */
+function isThoughtSignatureRejection(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    error.status === 400 &&
+    /thought[_\s-]?signature/i.test(error.message ?? "")
+  );
+}
+
+/**
+ * Copy `contents` with every stored thought signature removed and Google's
+ * dummy signature on the first function call of each model message.
+ */
+function withPlaceholderThoughtSignatures(
+  contents: genai.Content[],
+): genai.Content[] {
+  return contents.map((content) => {
+    let stamped = false;
+    const parts = (content.parts ?? []).map((part) => {
+      const { thoughtSignature: _dropped, ...rest } = part;
+      if (content.role === "model" && rest.functionCall && !stamped) {
+        stamped = true;
+        return {
+          ...rest,
+          thoughtSignature: GEMINI_3_UNSIGNED_TOOL_CALL_THOUGHT_SIGNATURE,
+        };
+      }
+      return rest;
+    });
+    return { ...content, parts };
+  });
+}
+
 /** Validation-specific timeout (10s) so a stalled network doesn't block key submission. */
 const VALIDATION_TIMEOUT_MS = 10_000;
 
@@ -526,11 +562,31 @@ export class GeminiProvider implements Provider {
       let responseModel = activeModel;
 
       try {
-        const stream = await this.client.models.generateContentStream({
-          model: activeModel,
-          contents: geminiContents,
-          config: geminiConfig,
-        });
+        const startStream = (contents: genai.Content[]) =>
+          this.client.models.generateContentStream({
+            model: activeModel,
+            contents,
+            config: geminiConfig,
+          });
+        let stream: Awaited<ReturnType<typeof startStream>>;
+        try {
+          stream = await startStream(geminiContents);
+        } catch (error) {
+          if (!isThoughtSignatureRejection(error)) {
+            throw error;
+          }
+          // A stored signature that Google rejects fails on every replay, so
+          // the conversation stays broken. Resend once with Google's documented
+          // dummy in place of the stored signatures. The stored history keeps
+          // the rejected signature, so later requests pay this extra round trip.
+          log.warn(
+            { model: activeModel, status: error.status },
+            "Gemini rejected a stored thought signature; retrying with placeholder signatures",
+          );
+          const resigned = withPlaceholderThoughtSignatures(geminiContents);
+          inspectableRequest.contents = resigned;
+          stream = await startStream(resigned);
+        }
 
         for await (const chunk of stream) {
           // Extract text delta

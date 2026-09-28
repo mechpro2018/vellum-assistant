@@ -47,6 +47,8 @@ let fakeChunks: FakeChunk[] = [];
 let lastStreamParams: Record<string, unknown> | null = null;
 let lastConstructorOpts: Record<string, unknown> | null = null;
 let shouldThrow: Error | null = null;
+let shouldThrowOnce: Error | null = null;
+let streamParamsHistory: Array<Record<string, unknown>> = [];
 let listShouldThrow: Error | null = null;
 
 class FakeApiError extends Error {
@@ -66,6 +68,12 @@ mock.module("@google/genai", () => ({
     models = {
       generateContentStream: async (params: Record<string, unknown>) => {
         lastStreamParams = params;
+        streamParamsHistory.push(params);
+        if (shouldThrowOnce) {
+          const error = shouldThrowOnce;
+          shouldThrowOnce = null;
+          throw error;
+        }
         if (shouldThrow) {
           throw shouldThrow;
         }
@@ -187,6 +195,8 @@ describe("GeminiProvider", () => {
     lastStreamParams = null;
     lastConstructorOpts = null;
     shouldThrow = null;
+    shouldThrowOnce = null;
+    streamParamsHistory = [];
   });
 
   // -----------------------------------------------------------------------
@@ -1243,6 +1253,57 @@ describe("GeminiProvider", () => {
         },
       },
     ]);
+  });
+
+  const CORRUPTED_SIGNATURE_MESSAGE =
+    '{"error":{"code":400,"message":"Corrupted thought signature.","status":"INVALID_ARGUMENT"}}';
+  const signedToolHistory: Message[] = [
+    { role: "user", content: [{ type: "text", text: "Read files" }] },
+    {
+      role: "assistant",
+      content: [
+        {
+          type: "tool_use",
+          id: "call_1",
+          name: "file_read",
+          input: { path: "/a" },
+          providerMetadata: { gemini: { thoughtSignature: "stale-signature" } },
+        },
+      ],
+    },
+    {
+      role: "user",
+      content: [{ type: "tool_result", tool_use_id: "call_1", content: "ok" }],
+    },
+  ];
+
+  test("retries once with placeholder signatures when Gemini rejects a stored thought signature", async () => {
+    fakeChunks = [textChunk("OK"), finishChunk("STOP", 10, 2)];
+    shouldThrowOnce = new FakeApiError(400, CORRUPTED_SIGNATURE_MESSAGE);
+
+    const result = await provider.sendMessage(signedToolHistory);
+
+    expect(result.content).toEqual([{ type: "text", text: "OK" }]);
+    expect(streamParamsHistory).toHaveLength(2);
+    const signatureOf = (params: Record<string, unknown>) =>
+      (
+        params.contents as Array<{
+          parts: Array<{ thoughtSignature?: string }>;
+        }>
+      )[1].parts[0].thoughtSignature;
+    expect(signatureOf(streamParamsHistory[0])).toBe("stale-signature");
+    expect(signatureOf(streamParamsHistory[1])).toBe(
+      "context_engineering_is_the_way_to_go",
+    );
+  });
+
+  test("surfaces the error when the placeholder retry is also rejected", async () => {
+    shouldThrow = new FakeApiError(400, CORRUPTED_SIGNATURE_MESSAGE);
+
+    await expect(provider.sendMessage(signedToolHistory)).rejects.toThrow(
+      "Corrupted thought signature",
+    );
+    expect(streamParamsHistory).toHaveLength(2);
   });
 
   test("does not add fallback thought signature for Gemini 2.5 tool_use history", async () => {
