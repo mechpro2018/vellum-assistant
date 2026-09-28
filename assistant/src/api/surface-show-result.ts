@@ -11,11 +11,14 @@
  * so guidance can only ever be added in a way the parser still understands.
  */
 
+import { z } from "zod";
+
+const SurfaceShowResultSchema = z
+  .object({ surfaceId: z.string() })
+  .catchall(z.unknown());
+
 /** Fields a `ui_show` result envelope may carry beyond the surface id. */
-export interface SurfaceShowResult {
-  surfaceId: string;
-  [key: string]: unknown;
-}
+export type SurfaceShowResult = z.infer<typeof SurfaceShowResultSchema>;
 
 /**
  * Read the `surfaceId` out of a `ui_show` tool result, or `undefined` when the
@@ -66,10 +69,10 @@ function parseLeadingJsonObject(
     return undefined;
   }
   try {
-    const parsed: unknown = JSON.parse(trimmed.slice(0, end + 1));
-    return parsed !== null && typeof parsed === "object"
-      ? (parsed as Record<string, unknown>)
-      : undefined;
+    const parsed = SurfaceShowResultSchema.safeParse(
+      JSON.parse(trimmed.slice(0, end + 1)),
+    );
+    return parsed.success ? parsed.data : undefined;
   } catch {
     return undefined;
   }
