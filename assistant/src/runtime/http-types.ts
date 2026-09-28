@@ -1,6 +1,8 @@
 /**
  * Shared types for the runtime HTTP server and its route handlers.
  */
+import { z } from "zod";
+
 import type {
   ConversationMessage,
   ConversationMessageAttachment,
@@ -8,10 +10,8 @@ import type {
 import type { ChannelId, InterfaceId } from "../channels/types.js";
 import type { LLMCallSite } from "../config/schemas/llm.js";
 import type { Conversation } from "../daemon/conversation.js";
-import type {
-  ConversationCreateOptions,
-  SlackInboundMessageMetadata,
-} from "../daemon/handlers/shared.js";
+import type { ConversationCreateOptions } from "../daemon/handlers/shared.js";
+import type { SlackInboundMessageMetadata } from "../daemon/slack-inbound-message-metadata.js";
 
 // Re-export so route modules (background-dispatch, etc.) can pull the type
 // from the runtime barrel without reaching into daemon internals.
@@ -30,18 +30,27 @@ import type { TrustContext } from "../daemon/trust-context-types.js";
 // ---------------------------------------------------------------------------
 
 /** The disposition returned by the approval conversation engine. */
-export type ApprovalConversationDisposition =
-  | "keep_pending"
-  | "approve_once"
-  | "reject";
+export const ApprovalConversationDispositionSchema = z.enum([
+  "keep_pending",
+  "approve_once",
+  "reject",
+]);
+export type ApprovalConversationDisposition = z.infer<
+  typeof ApprovalConversationDispositionSchema
+>;
 
 /** Structured result from a single turn of the approval conversation. */
-export interface ApprovalConversationResult {
-  disposition: ApprovalConversationDisposition;
-  replyText: string;
-  /** Required when there are multiple pending approvals and the disposition is decision-bearing. */
-  targetRequestId?: string;
-}
+export const ApprovalConversationResultSchema = z
+  .object({
+    disposition: ApprovalConversationDispositionSchema,
+    replyText: z.string().refine((value) => value.trim().length > 0),
+    /** Required when there are multiple pending approvals and the disposition is decision-bearing. */
+    targetRequestId: z.string().optional(),
+  })
+  .passthrough();
+export type ApprovalConversationResult = z.infer<
+  typeof ApprovalConversationResultSchema
+>;
 
 /** Input context for the approval conversation engine. */
 export interface ApprovalConversationContext {

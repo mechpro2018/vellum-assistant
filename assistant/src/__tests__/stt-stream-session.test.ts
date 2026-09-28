@@ -546,6 +546,18 @@ describe("SttStreamSession", () => {
       expect(ws.frames.length).toBe(frameCountBefore);
     });
 
+    test("malformed optional event fields are ignored", async () => {
+      const { session } = createSession("deepgram");
+      const transcriber = new MockDeepgramTranscriber();
+
+      await session.start(async () => transcriber);
+      session.handleMessage(JSON.stringify({ type: "audio", audio: 42 }));
+      expect(transcriber.audioChunks).toHaveLength(0);
+
+      session.handleMessage(JSON.stringify({ type: "stop", audio: 42 }));
+      expect(transcriber.stopped).toBe(true);
+    });
+
     test("messages after close are dropped", async () => {
       const { ws, session } = createSession("deepgram");
       const transcriber = new MockDeepgramTranscriber();

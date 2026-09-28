@@ -42,6 +42,7 @@ import { estimateBase64Bytes } from "../assistant-attachments.js";
 import { conversationSupportsDynamicUi } from "../channel-ui-capability.js";
 import { findConversation } from "../conversation-registry.js";
 import type { ConversationTransportMetadata } from "../message-protocol.js";
+import type { SlackInboundMessageMetadata } from "../slack-inbound-message-metadata.js";
 import type { TrustContext } from "../trust-context-types.js";
 
 const log = getLogger("handlers");
@@ -110,68 +111,11 @@ export interface RenderedHistoryContent {
   contentBlocks: ConversationContentBlock[];
 }
 
-/**
- * One entry from Slack's `app_context` — an object the sender had open in
- * Slack when they sent the message. `value` is an id string for the channel /
- * canvas / list entity types and an object for `slack#/types/message_context`,
- * which points at a specific message. Mirrors `sourceMetadata.appContext` on
- * the gateway inbound contract; the values arrive unvalidated, so every
- * consumer shape-checks before use.
- */
-export interface SlackAppContextEntity {
-  type: string;
-  value: string | { messageTs?: string; channelId?: string };
-  teamId?: string;
-  enterpriseId?: string;
-}
-
-/** The sender's active Slack context for a single inbound message. */
-export interface SlackAppContext {
-  entities: SlackAppContextEntity[];
-}
-
-/**
- * Slack-specific metadata extracted at the inbound HTTP boundary and threaded
- * through to user-message persistence so the row can be tagged with a
- * `slackMeta` envelope for the chronological renderer.
- */
-export interface SlackInboundMessageMetadata {
-  /** Slack channel id (conversation external id) — recorded as `channelId`. */
-  channelId: string;
-  /** Human-readable Slack channel name, when the gateway supplied it. */
-  channelName?: string;
-  /** Slack `ts` for this message — required so persistence can record `channelTs`. */
-  channelTs: string;
-  /** Parent `thread_ts` when the message lives inside a thread; absent for top-level. */
-  threadTs?: string;
-  /** Resolved sender label (display name preferred, username fallback). */
-  displayName?: string;
-  /** Canonical Slack external user id for the sender, when available. */
-  actorExternalUserId?: string;
-  /** Slack team id the sender belongs to — the `recipient_team_id` for channel streaming. */
-  actorTeamId?: string;
-  /** Raw Slack profile timezone for the sender, when supplied. */
-  actorTimezone?: string;
-  /** Compact Slack profile timezone label for the sender, when supplied. */
-  actorTimezoneLabel?: string;
-  /** Raw Slack profile timezone offset in seconds, when supplied. */
-  actorTimezoneOffsetSeconds?: number;
-  /** Timezone used to render this message's timestamp. */
-  timestampTimezone?: string;
-  /** Compact label for the rendered timestamp timezone. */
-  timestampTimezoneLabel?: string;
-  /** Compact timezone label appended to the rendered speaker name. */
-  speakerTimezoneLabel?: string;
-  /**
-   * What the sender had open in Slack when they sent this message. Carried
-   * here so it lands on the stored ingress payload alongside the rest of
-   * `slackInbound`, letting the retry sweep render a replayed turn with the
-   * same context the live turn saw. Not projected into `slackMeta`: the
-   * context is baked into the message content at ingress, so the transcript
-   * renderer already has it.
-   */
-  appContext?: SlackAppContext;
-}
+export type {
+  SlackAppContext,
+  SlackAppContextEntity,
+  SlackInboundMessageMetadata,
+} from "../slack-inbound-message-metadata.js";
 
 /**
  * Optional overrides for conversation creation (e.g. interview mode).

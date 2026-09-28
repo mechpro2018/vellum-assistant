@@ -27,6 +27,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+import { z } from "zod";
+
 import {
   getDeviceIdOverride,
   getIsContainerized,
@@ -35,6 +37,11 @@ import { getLogger } from "./logger.js";
 import { getXdgVellumConfigDirName } from "./platform.js";
 
 const log = getLogger("device-id");
+
+const DeviceIdFileSchema = z.object({
+  deviceId: z.string().min(1),
+});
+const DeviceMetadataSchema = z.record(z.string(), z.unknown());
 
 let cached: string | undefined;
 
@@ -72,16 +79,10 @@ function readDeviceIdFromFile(filePath: string): string | null {
     return null;
   }
 
-  const raw = JSON.parse(readFileSync(filePath, "utf-8"));
-  if (
-    raw &&
-    typeof raw === "object" &&
-    typeof raw.deviceId === "string" &&
-    raw.deviceId.length > 0
-  ) {
-    return raw.deviceId as string;
-  }
-  return null;
+  const parsed = DeviceIdFileSchema.safeParse(
+    JSON.parse(readFileSync(filePath, "utf-8")),
+  );
+  return parsed.success ? parsed.data.deviceId : null;
 }
 
 /**
@@ -161,9 +162,11 @@ export function getDeviceId(): string {
     let existing: Record<string, unknown> = {};
     try {
       if (existsSync(filePath)) {
-        const raw = JSON.parse(readFileSync(filePath, "utf-8"));
-        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-          existing = raw as Record<string, unknown>;
+        const parsed = DeviceMetadataSchema.safeParse(
+          JSON.parse(readFileSync(filePath, "utf-8")),
+        );
+        if (parsed.success) {
+          existing = parsed.data;
         }
       }
     } catch {

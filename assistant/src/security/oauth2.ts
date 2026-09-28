@@ -19,6 +19,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 
+import { z } from "zod";
+
 import { getIsPlatform } from "../config/env-registry.js";
 import { parseScopeList } from "../oauth/scope-utils.js";
 import { getLogger } from "../util/logger.js";
@@ -107,6 +109,98 @@ export interface OAuth2FlowResult {
   rawTokenResponse: Record<string, unknown>;
 }
 
+const OAuthTokenFieldsSchema = z
+  .object({
+    access_token: z.string().min(1).optional().catch(undefined),
+    refresh_token: z.string().optional().catch(undefined),
+    expires_in: z.number().optional().catch(undefined),
+    scope: z.string().optional().catch(undefined),
+    token_type: z.string().optional().catch(undefined),
+  })
+  .passthrough();
+
+const OAuthTokenResponseSchema = OAuthTokenFieldsSchema.extend({
+  authed_user: OAuthTokenFieldsSchema.optional().catch(undefined),
+})
+  .passthrough()
+  .transform((data, context) => {
+    const source = data.authed_user?.access_token ? data.authed_user : data;
+    const accessToken = source.access_token ?? data.access_token;
+    if (accessToken === undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "OAuth token response is missing access_token",
+      });
+      return z.NEVER;
+    }
+    return {
+      raw: data,
+      tokens: {
+        accessToken,
+        refreshToken: source.refresh_token ?? data.refresh_token,
+        expiresIn: source.expires_in ?? data.expires_in,
+        scope: source.scope ?? data.scope,
+        tokenType: source.token_type ?? data.token_type,
+      } satisfies OAuth2TokenResult,
+    };
+  });
+
+const OAuthNestedErrorSchema = z
+  .object({
+    type: z.unknown().optional(),
+    message: z.unknown().optional(),
+  })
+  .passthrough();
+
+const OAuthErrorValueSchema = z
+  .union([
+    OAuthNestedErrorSchema.transform((error) => ({
+      error: error.message === undefined ? undefined : String(error.message),
+      errorType: error.type === undefined ? undefined : String(error.type),
+      errorCode: String(error.type ?? error.message ?? ""),
+    })),
+    z.union([z.string(), z.number(), z.boolean()]).transform((error) => ({
+      error: String(error),
+      errorType: undefined,
+      errorCode: String(error),
+    })),
+    z.null().transform(() => ({
+      error: "null",
+      errorType: undefined,
+      errorCode: "null",
+    })),
+    z.array(z.unknown()).transform(() => undefined),
+  ])
+  .optional()
+  .catch(undefined);
+
+const OAuthErrorResponseSchema = z
+  .object({
+    error: OAuthErrorValueSchema,
+    error_description: z
+      .unknown()
+      .optional()
+      .transform((value) => (value === undefined ? undefined : String(value))),
+  })
+  .passthrough()
+  .transform((data) => ({
+    error: data.error?.error,
+    errorType: data.error?.errorType,
+    errorDescription: data.error_description,
+    errorCode: data.error?.errorCode ?? "",
+  }));
+
+function parseOAuthErrorResponse(
+  rawBody: string,
+): z.infer<typeof OAuthErrorResponseSchema> | null {
+  try {
+    const parsed = OAuthErrorResponseSchema.safeParse(JSON.parse(rawBody));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // PKCE helpers
 // ---------------------------------------------------------------------------
@@ -188,32 +282,21 @@ export async function exchangeCodeForTokens(
 
   if (!tokenResp.ok) {
     const rawBody = await tokenResp.text().catch(() => "");
-    const safeDetail: Record<string, unknown> = {};
-    let errorCode = "";
-    try {
-      const parsed = JSON.parse(rawBody) as Record<string, unknown>;
-      const err = parsed.error;
-      if (err && typeof err === "object") {
-        // Anthropic-style nested error: `{ error: { type, message } }`.
-        const nested = err as Record<string, unknown>;
-        if (nested.message !== undefined) {
-          safeDetail.error = String(nested.message);
+    const parsedError = parseOAuthErrorResponse(rawBody);
+    const safeDetail: Record<string, unknown> = parsedError
+      ? {
+          ...(parsedError.error ? { error: parsedError.error } : {}),
+          ...(parsedError.errorType
+            ? { error_type: parsedError.errorType }
+            : {}),
+          ...(parsedError.errorDescription
+            ? { error_description: parsedError.errorDescription }
+            : {}),
         }
-        if (nested.type !== undefined) {
-          safeDetail.error_type = String(nested.type);
-        }
-        errorCode = String(nested.type ?? nested.message ?? "");
-      } else if (err !== undefined) {
-        safeDetail.error = String(err);
-        errorCode = String(err);
-      }
-      if (parsed.error_description !== undefined) {
-        safeDetail.error_description = String(parsed.error_description);
-      }
-    } catch {
-      // Non-JSON error body — keep a bounded slice so failures stay diagnosable.
-      safeDetail.error = rawBody.slice(0, 300) || "[empty response body]";
-    }
+      : {
+          error: rawBody.slice(0, 300) || "[empty response body]",
+        };
+    const errorCode = parsedError?.errorCode ?? "";
     log.error(
       { status: tokenResp.status, ...safeDetail },
       "OAuth2 token exchange failed",
@@ -224,38 +307,22 @@ export async function exchangeCodeForTokens(
     throw new Error(`OAuth2 token exchange failed (${detail})`);
   }
 
-  const tokenData = (await tokenResp.json()) as Record<string, unknown>;
+  const parsedToken = OAuthTokenResponseSchema.safeParse(
+    await tokenResp.json(),
+  );
+  if (!parsedToken.success) {
+    throw new Error("OAuth2 token exchange returned an invalid response");
+  }
 
-  // Slack V2 OAuth returns user tokens nested under `authed_user`
-  const authedUser = tokenData.authed_user as
-    | Record<string, unknown>
-    | undefined;
-  const tokenSource = authedUser?.access_token ? authedUser : tokenData;
+  const grantedScopes = parsedToken.data.tokens.scope
+    ? parseScopeList(parsedToken.data.tokens.scope, config.scopeSeparator)
+    : [...config.scopes];
 
-  const tokens: OAuth2TokenResult = {
-    accessToken:
-      (tokenSource.access_token as string) ??
-      (tokenData.access_token as string),
-    refreshToken:
-      (tokenSource.refresh_token as string | undefined) ??
-      (tokenData.refresh_token as string | undefined),
-    expiresIn:
-      (tokenSource.expires_in as number | undefined) ??
-      (tokenData.expires_in as number | undefined),
-    scope:
-      (tokenSource.scope as string | undefined) ??
-      (tokenData.scope as string | undefined),
-    tokenType:
-      (tokenSource.token_type as string | undefined) ??
-      (tokenData.token_type as string | undefined),
+  return {
+    tokens: parsedToken.data.tokens,
+    grantedScopes,
+    rawTokenResponse: parsedToken.data.raw,
   };
-
-  const grantedScopes =
-    typeof tokens.scope === "string"
-      ? parseScopeList(tokens.scope, config.scopeSeparator)
-      : [...config.scopes];
-
-  return { tokens, grantedScopes, rawTokenResponse: tokenData };
 }
 
 // ---------------------------------------------------------------------------
@@ -935,20 +1002,16 @@ export async function refreshOAuth2Token(
 
     if (!resp.ok) {
       const rawBody = await resp.text().catch(() => "");
-      const safeDetail: Record<string, unknown> = {};
-      let errorCode = "";
-      try {
-        const parsed = JSON.parse(rawBody) as Record<string, unknown>;
-        if (parsed.error) {
-          safeDetail.error = String(parsed.error);
-          errorCode = String(parsed.error);
-        }
-        if (parsed.error_description) {
-          safeDetail.error_description = String(parsed.error_description);
-        }
-      } catch {
-        safeDetail.error = "[non-JSON response]";
-      }
+      const parsedError = parseOAuthErrorResponse(rawBody);
+      const safeDetail: Record<string, unknown> = parsedError
+        ? {
+            ...(parsedError.error ? { error: parsedError.error } : {}),
+            ...(parsedError.errorDescription
+              ? { error_description: parsedError.errorDescription }
+              : {}),
+          }
+        : { error: "[non-JSON response]" };
+      const errorCode = parsedError?.errorCode ?? "";
 
       const detail = errorCode
         ? `HTTP ${resp.status}: ${errorCode}`
@@ -971,14 +1034,14 @@ export async function refreshOAuth2Token(
       continue;
     }
 
-    const data = (await resp.json()) as Record<string, unknown>;
+    const parsedToken = OAuthTokenResponseSchema.safeParse(await resp.json());
+    if (!parsedToken.success) {
+      throw new Error("OAuth2 token refresh returned an invalid response");
+    }
 
     return {
-      accessToken: data.access_token as string,
-      refreshToken: (data.refresh_token as string | undefined) ?? refreshToken,
-      expiresIn: data.expires_in as number | undefined,
-      scope: data.scope as string | undefined,
-      tokenType: data.token_type as string | undefined,
+      ...parsedToken.data.tokens,
+      refreshToken: parsedToken.data.tokens.refreshToken ?? refreshToken,
     };
   }
 

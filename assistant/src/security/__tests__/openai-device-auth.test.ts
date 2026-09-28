@@ -145,6 +145,27 @@ describe("requestDeviceCode", () => {
     expect(err.code).toBe("deviceauth_disabled");
     expect(err.message).toBe("Device auth is off.");
   });
+
+  test("rejects a malformed successful usercode response", async () => {
+    const { fetchImpl } = queuedFetch([
+      jsonResponse(200, { device_auth_id: 42, user_code: "AMOO-SIISY" }),
+    ]);
+
+    await expect(requestDeviceCode(CLIENT_ID, { fetchImpl })).rejects.toThrow(
+      "missing a device id or user code",
+    );
+  });
+
+  test("accepts a string error code response", async () => {
+    const { fetchImpl } = queuedFetch([
+      jsonResponse(400, { error: "deviceauth_disabled" }),
+    ]);
+
+    const err = (await requestDeviceCode(CLIENT_ID, { fetchImpl }).catch(
+      (e: unknown) => e,
+    )) as DeviceAuthError;
+    expect(err.code).toBe("deviceauth_disabled");
+  });
 });
 
 describe("pollForAuthorizationCode", () => {
@@ -221,6 +242,19 @@ describe("pollForAuthorizationCode", () => {
     expect(calls).toHaveLength(2);
     expect(err).toBeInstanceOf(DeviceAuthError);
     expect(err.code).toBe("expired_token");
+  });
+
+  test("rejects a malformed successful authorization response", async () => {
+    const { fetchImpl } = queuedFetch([
+      jsonResponse(200, { authorization_code: "auth-code", code_verifier: 42 }),
+    ]);
+
+    await expect(
+      pollForAuthorizationCode(pendingRequest(), {
+        fetchImpl,
+        sleep: noSleep,
+      }),
+    ).rejects.toThrow("returned no authorization code");
   });
 
   test("retries transport failures and 5xx responses", async () => {

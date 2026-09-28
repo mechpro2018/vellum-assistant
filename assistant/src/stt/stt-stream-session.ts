@@ -35,6 +35,8 @@
  *   configurable window.
  */
 
+import { z } from "zod";
+
 import {
   listProviderIds,
   supportsBoundary,
@@ -49,6 +51,12 @@ import {
 } from "./types.js";
 
 const log = getLogger("stt-stream-session");
+
+const SttStreamClientEventSchema = z.object({
+  type: z.string().optional().catch(undefined),
+  audio: z.string().optional().catch(undefined),
+  mimeType: z.string().optional().catch(undefined),
+});
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -267,24 +275,20 @@ export class SttStreamSession {
 
     this.resetIdleTimer();
 
-    let parsed: unknown;
+    let decoded: unknown;
     try {
-      parsed = JSON.parse(raw);
+      decoded = JSON.parse(raw);
     } catch {
-      // Not JSON — ignore silently. Could be a malformed frame.
+      // Not JSON - ignore silently. Could be a malformed frame.
       log.debug("STT stream: dropped non-JSON text frame");
       return;
     }
 
-    if (!parsed || typeof parsed !== "object") {
+    const parsed = SttStreamClientEventSchema.safeParse(decoded);
+    if (!parsed.success) {
       return;
     }
-
-    const event = parsed as {
-      type?: string;
-      audio?: string;
-      mimeType?: string;
-    };
+    const event = parsed.data;
     switch (event.type) {
       case "audio": {
         if (this.state !== "active") {

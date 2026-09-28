@@ -11,15 +11,13 @@
 // Hook point: a deterministic classifier could be inserted here as an
 // alternative to model-based inference
 
-import type {
-  ApprovalConversationContext,
-  ApprovalConversationDisposition,
-  ApprovalConversationGenerator,
-  ApprovalConversationResult,
+import {
+  type ApprovalConversationContext,
+  type ApprovalConversationDisposition,
+  type ApprovalConversationGenerator,
+  type ApprovalConversationResult,
+  ApprovalConversationResultSchema,
 } from "./http-types.js";
-
-const VALID_DISPOSITIONS: ReadonlySet<ApprovalConversationDisposition> =
-  new Set(["keep_pending", "approve_once", "reject"]);
 
 /** Dispositions that represent an actual decision (not just "keep waiting"). */
 const DECISION_BEARING_DISPOSITIONS: ReadonlySet<ApprovalConversationDisposition> =
@@ -30,31 +28,6 @@ const FAIL_CLOSED_REPLY =
 
 function failClosed(): ApprovalConversationResult {
   return { disposition: "keep_pending", replyText: FAIL_CLOSED_REPLY };
-}
-
-function isValidResult(value: unknown): value is ApprovalConversationResult {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const obj = value as Record<string, unknown>;
-  if (typeof obj.disposition !== "string") {
-    return false;
-  }
-  if (
-    !VALID_DISPOSITIONS.has(obj.disposition as ApprovalConversationDisposition)
-  ) {
-    return false;
-  }
-  if (typeof obj.replyText !== "string" || obj.replyText.trim().length === 0) {
-    return false;
-  }
-  if (
-    obj.targetRequestId !== undefined &&
-    typeof obj.targetRequestId !== "string"
-  ) {
-    return false;
-  }
-  return true;
 }
 
 /**
@@ -68,17 +41,19 @@ export async function runApprovalConversationTurn(
   context: ApprovalConversationContext,
   generator: ApprovalConversationGenerator,
 ): Promise<ApprovalConversationResult> {
-  let result: ApprovalConversationResult;
+  let generated: unknown;
 
   try {
-    result = await generator(context);
+    generated = await generator(context);
   } catch {
     return failClosed();
   }
 
-  if (!isValidResult(result)) {
+  const parsed = ApprovalConversationResultSchema.safeParse(generated);
+  if (!parsed.success) {
     return failClosed();
   }
+  const result = parsed.data;
 
   // Enforce allowed-actions policy: the model must not return a disposition
   // that the caller did not offer (keep_pending is always acceptable).

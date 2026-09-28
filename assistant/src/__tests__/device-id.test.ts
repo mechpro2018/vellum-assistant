@@ -151,6 +151,25 @@ describe("getDeviceId VELLUM_DEVICE_ID precedence", () => {
     expect(existsSync(join(tempDir, "vellum-dev", "device.json"))).toBe(true);
   });
 
+  test("preserves unrelated device metadata while replacing an invalid id", () => {
+    const dir = join(tempDir, "vellum-dev");
+    mkdirSync(dir, { recursive: true });
+    const filePath = join(dir, "device.json");
+    writeFileSync(
+      filePath,
+      JSON.stringify({ deviceId: 42, installation: "local" }),
+    );
+
+    const id = getDeviceId();
+    const stored = JSON.parse(readFileSync(filePath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+
+    expect(stored.deviceId).toBe(id);
+    expect(stored.installation).toBe("local");
+  });
+
   test("env var wins over an existing device.json without overwriting it", () => {
     const dir = join(tempDir, "vellum-dev");
     mkdirSync(dir, { recursive: true });
@@ -199,6 +218,14 @@ describe("getExistingDeviceId", () => {
     );
 
     expect(getExistingDeviceId()).toBe("file-id");
+  });
+
+  test("rejects a non-string device id", () => {
+    const dir = join(tempDir, "vellum-dev");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "device.json"), JSON.stringify({ deviceId: 42 }));
+
+    expect(getExistingDeviceId()).toBeNull();
   });
 
   test("returns the env override without writing device.json", () => {

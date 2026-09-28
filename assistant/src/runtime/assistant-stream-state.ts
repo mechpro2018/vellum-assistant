@@ -63,6 +63,8 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { z } from "zod";
+
 import {
   SSE_REPLAY_RING_AGE_LIMIT_MS,
   SSE_REPLAY_RING_COUNT_LIMIT,
@@ -77,6 +79,10 @@ import {
 } from "./assistant-event-targeting.js";
 
 const log = getLogger("assistant-stream-state");
+
+const StreamSeqReservationSchema = z.object({
+  reservedSeqCeiling: z.number().finite().positive(),
+});
 
 // ── Tunables ─────────────────────────────────────────────────────────
 
@@ -473,23 +479,11 @@ function reserveSeqCapacity(): void {
 
 function readReservedCeiling(): number {
   try {
-    const parsed: unknown = JSON.parse(
-      readFileSync(seqReservationPath(), "utf8"),
+    const parsed = StreamSeqReservationSchema.safeParse(
+      JSON.parse(readFileSync(seqReservationPath(), "utf8")),
     );
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "reservedSeqCeiling" in parsed
-    ) {
-      const ceiling = (parsed as { reservedSeqCeiling: unknown })
-        .reservedSeqCeiling;
-      if (
-        typeof ceiling === "number" &&
-        Number.isFinite(ceiling) &&
-        ceiling > 0
-      ) {
-        return Math.floor(ceiling);
-      }
+    if (parsed.success) {
+      return Math.floor(parsed.data.reservedSeqCeiling);
     }
   } catch {
     // Missing or unreadable file: cold start from seq 1.

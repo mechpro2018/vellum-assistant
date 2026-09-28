@@ -18,20 +18,25 @@
 
 import { randomBytes } from "node:crypto";
 
+import { z } from "zod";
+
 // ── Token shape ──────────────────────────────────────────────────────
 
-export interface DecisionTokenPayload {
-  /** Conversation the decision belongs to. */
-  conversationId: string;
-  /** Surface identifier that was displayed. */
-  surfaceId: string;
-  /** The action ID the user selected (e.g. "confirm"). Only present on affirmative confirmation. */
-  action: string;
-  /** ISO-8601 timestamp when the decision was recorded. */
-  issuedAt: string;
-  /** ISO-8601 timestamp after which the token should be considered stale. */
-  expiresAt: string;
-}
+export const DecisionTokenPayloadSchema = z
+  .object({
+    /** Conversation the decision belongs to. */
+    conversationId: z.string(),
+    /** Surface identifier that was displayed. */
+    surfaceId: z.string(),
+    /** The action ID the user selected (e.g. "confirm"). Only present on affirmative confirmation. */
+    action: z.string(),
+    /** ISO-8601 timestamp when the decision was recorded. */
+    issuedAt: z.string(),
+    /** ISO-8601 timestamp after which the token should be considered stale. */
+    expiresAt: z.string(),
+  })
+  .passthrough();
+export type DecisionTokenPayload = z.infer<typeof DecisionTokenPayloadSchema>;
 
 /** Default token lifetime: 5 minutes. */
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
@@ -98,20 +103,8 @@ export function decodeDecisionToken(
   const encodedPayload = token.slice(0, dotIdx);
   try {
     const json = Buffer.from(encodedPayload, "base64url").toString("utf-8");
-    const parsed = JSON.parse(json) as Record<string, unknown>;
-
-    // Minimal structural validation
-    if (
-      typeof parsed.conversationId !== "string" ||
-      typeof parsed.surfaceId !== "string" ||
-      typeof parsed.action !== "string" ||
-      typeof parsed.issuedAt !== "string" ||
-      typeof parsed.expiresAt !== "string"
-    ) {
-      return null;
-    }
-
-    return parsed as unknown as DecisionTokenPayload;
+    const parsed = DecisionTokenPayloadSchema.safeParse(JSON.parse(json));
+    return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }

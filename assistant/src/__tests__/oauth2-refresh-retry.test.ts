@@ -199,6 +199,46 @@ describe("refreshOAuth2Token retry behavior", () => {
     expect(fetchCallCount).toBe(1);
   });
 
+  test("rejects a successful response without an access token", async () => {
+    fetchResponses = [
+      {
+        type: "response",
+        ok: true,
+        status: 200,
+        body: { refresh_token: "refresh-only" },
+      },
+    ];
+
+    await expect(
+      refreshOAuth2Token(
+        "https://example.com/token",
+        "client-id",
+        "refresh-token",
+      ),
+    ).rejects.toThrow("invalid response");
+    expect(fetchCallCount).toBe(1);
+  });
+
+  test("reads a nested refresh error response", async () => {
+    fetchResponses = [
+      {
+        type: "response",
+        ok: false,
+        status: 400,
+        body: { error: { type: "invalid_grant", message: "expired" } },
+      },
+    ];
+
+    await expect(
+      refreshOAuth2Token(
+        "https://example.com/token",
+        "client-id",
+        "refresh-token",
+      ),
+    ).rejects.toThrow("HTTP 400: invalid_grant");
+    expect(fetchCallCount).toBe(1);
+  });
+
   test("does NOT retry on 401", async () => {
     fetchResponses = [
       {

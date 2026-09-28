@@ -14,6 +14,7 @@ import { isConversationBusyError } from "../daemon/conversation-messaging.js";
 import { findConversation } from "../daemon/conversation-registry.js";
 import { getDiskPressureStatus } from "../daemon/disk-pressure-guard.js";
 import { classifyDiskPressureTurnPolicy } from "../daemon/disk-pressure-policy.js";
+import { SlackInboundMessageMetadataSchema } from "../daemon/slack-inbound-message-metadata.js";
 import type { TrustContext } from "../daemon/trust-context-types.js";
 import {
   type ProviderMessageMetadata,
@@ -153,17 +154,8 @@ function parseTrustRuntimeContext(value: unknown): TrustContext | undefined {
 function parseStoredSlackInbound(
   value: unknown,
 ): SlackInboundMessageMetadata | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-  const obj = value as Record<string, unknown>;
-  if (typeof obj.channelId !== "string" || typeof obj.channelTs !== "string") {
-    return undefined;
-  }
-  // Required fields validated above; optional slackMeta fields flow through as
-  // stored (this is our own persisted JSON, and downstream slackMeta building
-  // treats every optional field defensively).
-  return obj as unknown as SlackInboundMessageMetadata;
+  const parsed = SlackInboundMessageMetadataSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
 }
 
 /**

@@ -118,3 +118,63 @@ describe("exchangeCodeForTokens — Claude JSON + state", () => {
     expect(body.state).toBeUndefined();
   });
 });
+
+test("uses Slack's nested authed_user token response", async () => {
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        access_token: "bot-token",
+        authed_user: {
+          access_token: "user-token",
+          refresh_token: "user-refresh",
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    )) as unknown as typeof fetch;
+
+  const result = await exchangeCodeForTokens(
+    BASE_CONFIG,
+    "auth-code",
+    "http://localhost:1234/callback",
+    "verifier-123",
+  );
+
+  expect(result.tokens.accessToken).toBe("user-token");
+  expect(result.tokens.refreshToken).toBe("user-refresh");
+});
+
+test("rejects a successful response without an access token", async () => {
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ refresh_token: "refresh-only" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })) as unknown as typeof fetch;
+
+  await expect(
+    exchangeCodeForTokens(
+      BASE_CONFIG,
+      "auth-code",
+      "http://localhost:1234/callback",
+      "verifier-123",
+    ),
+  ).rejects.toThrow("invalid response");
+});
+
+test("reads a nested token-exchange error response", async () => {
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        error: { type: "invalid_grant", message: "The code expired." },
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } },
+    )) as unknown as typeof fetch;
+
+  await expect(
+    exchangeCodeForTokens(
+      BASE_CONFIG,
+      "auth-code",
+      "http://localhost:1234/callback",
+      "verifier-123",
+    ),
+  ).rejects.toThrow("HTTP 400: invalid_grant");
+});

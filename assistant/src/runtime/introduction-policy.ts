@@ -32,6 +32,7 @@ import {
   VERIFIED_VIA_MANUAL,
 } from "@vellumai/gateway-client";
 import type { GuardianActionEmphasis } from "@vellumai/service-contracts/guardian-requests";
+import { z } from "zod";
 
 import type { ApprovalAction } from "./channel-approval-types.js";
 
@@ -87,6 +88,14 @@ function compactSignals(
   return compact;
 }
 
+const RequesterIdentitySignalsSchema = z
+  .object({
+    isBot: z.boolean().optional().catch(undefined),
+    isStranger: z.boolean().optional().catch(undefined),
+    isRestricted: z.boolean().optional().catch(undefined),
+  })
+  .transform(compactSignals);
+
 /**
  * Serialize signals for the `requester_signals` column. Explicit `false` is
  * preserved — it is a positive "platform vouches this is a regular member"
@@ -108,11 +117,8 @@ export function parseRequesterSignals(
     return {};
   }
   try {
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) {
-      return {};
-    }
-    return compactSignals(parsed as Record<string, unknown>);
+    const parsed = RequesterIdentitySignalsSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : {};
   } catch {
     return {};
   }

@@ -14,6 +14,8 @@
  * code, both of which surface as a `DeviceAuthError`.
  */
 
+import { z } from "zod";
+
 import { getLogger } from "../util/logger.js";
 import type { OAuth2Config, OAuth2FlowResult } from "./oauth2.js";
 import { exchangeCodeForTokens } from "./oauth2.js";
@@ -46,6 +48,40 @@ export const OPENAI_DEVICE_AUTH_MAX_LIFETIME_MS = 15 * 60 * 1000;
 
 /** Error code the poll endpoint returns while the user has not yet approved. */
 const AUTHORIZATION_PENDING_CODE = "deviceauth_authorization_pending";
+
+const DeviceCodeResponseSchema = z
+  .object({
+    device_auth_id: z.string().min(1),
+    user_code: z.string().min(1),
+    expires_at: z.string().min(1).optional().catch(undefined),
+    interval: z.unknown().transform(parseIntervalSeconds),
+  })
+  .passthrough();
+
+const DeviceAuthorizationResponseSchema = z
+  .object({
+    authorization_code: z.string().min(1),
+    code_verifier: z.string().min(1),
+    code_challenge: z.string().min(1).optional().catch(undefined),
+  })
+  .passthrough();
+
+const DeviceAuthErrorResponseSchema = z
+  .object({
+    error: z
+      .union([
+        z.string().min(1),
+        z
+          .object({
+            code: z.string().min(1).optional().catch(undefined),
+            message: z.string().min(1).optional().catch(undefined),
+          })
+          .passthrough(),
+      ])
+      .optional()
+      .catch(undefined),
+  })
+  .passthrough();
 
 // ---------------------------------------------------------------------------
 // Types
@@ -131,28 +167,24 @@ export async function requestDeviceCode(
     );
   }
 
-  const data = (await response.json()) as Record<string, unknown>;
-  const deviceAuthId = asString(data.device_auth_id);
-  const userCode = asString(data.user_code);
-  if (!deviceAuthId || !userCode) {
+  const parsed = DeviceCodeResponseSchema.safeParse(await response.json());
+  if (!parsed.success) {
     throw new DeviceAuthError(
       "Device authorization response is missing a device id or user code.",
       "request_failed",
     );
   }
 
-  const expiresAt =
-    asString(data.expires_at) ??
-    new Date(
-      (options.now?.() ?? Date.now()) + OPENAI_DEVICE_AUTH_MAX_LIFETIME_MS,
-    ).toISOString();
-
   return {
-    deviceAuthId,
-    userCode,
+    deviceAuthId: parsed.data.device_auth_id,
+    userCode: parsed.data.user_code,
     verificationUrl: OPENAI_DEVICE_VERIFICATION_URL,
-    expiresAt,
-    intervalSeconds: parseIntervalSeconds(data.interval),
+    expiresAt:
+      parsed.data.expires_at ??
+      new Date(
+        (options.now?.() ?? Date.now()) + OPENAI_DEVICE_AUTH_MAX_LIFETIME_MS,
+      ).toISOString(),
+    intervalSeconds: parsed.data.interval,
   };
 }
 
@@ -203,22 +235,23 @@ export async function pollForAuthorizationCode(
     }
 
     if (response?.ok) {
-      const data = (await response.json()) as Record<string, unknown>;
-      const authorizationCode = asString(data.authorization_code);
-      const codeVerifier = asString(data.code_verifier);
-      if (!authorizationCode || !codeVerifier) {
+      const parsed = DeviceAuthorizationResponseSchema.safeParse(
+        await response.json(),
+      );
+      if (!parsed.success) {
         throw new DeviceAuthError(
           "Device authorization succeeded but returned no authorization code.",
           "request_failed",
         );
       }
       log.info("OpenAI device authorization approved");
-      const result: DeviceAuthCode = { authorizationCode, codeVerifier };
-      const codeChallenge = asString(data.code_challenge);
-      if (codeChallenge) {
-        result.codeChallenge = codeChallenge;
-      }
-      return result;
+      return {
+        authorizationCode: parsed.data.authorization_code,
+        codeVerifier: parsed.data.code_verifier,
+        ...(parsed.data.code_challenge
+          ? { codeChallenge: parsed.data.code_challenge }
+          : {}),
+      };
     }
 
     if (response && !isRetryableStatus(response.status)) {
@@ -318,30 +351,22 @@ async function readErrorBody(
     return {};
   }
   try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const error = parsed.error;
-    if (error && typeof error === "object") {
-      const nested = error as Record<string, unknown>;
-      const result: { code?: string; message?: string } = {};
-      const code = asString(nested.code);
-      if (code) {
-        result.code = code;
-      }
-      const message = asString(nested.message);
-      if (message) {
-        result.message = message;
-      }
-      return result;
+    const parsed = DeviceAuthErrorResponseSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success || parsed.data.error === undefined) {
+      return {};
     }
-    const code = asString(error);
-    return code ? { code } : {};
+    if (typeof parsed.data.error === "string") {
+      return { code: parsed.data.error };
+    }
+    return {
+      ...(parsed.data.error.code ? { code: parsed.data.error.code } : {}),
+      ...(parsed.data.error.message
+        ? { message: parsed.data.error.message }
+        : {}),
+    };
   } catch {
     return {};
   }
-}
-
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function errorMessage(err: unknown): string {

@@ -784,6 +784,21 @@ describe("assistant-stream-state", () => {
       expect(a.seq).toBe(1);
     });
 
+    test("a structurally invalid reservation degrades to a cold start", () => {
+      const path = join(
+        process.env.VELLUM_WORKSPACE_DIR!,
+        "data",
+        "stream-seq.json",
+      );
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, JSON.stringify({ reservedSeqCeiling: "1024" }));
+
+      _simulateRestartForTesting();
+      const a = mkEvent();
+      stampAndBuffer(a);
+      expect(a.seq).toBe(1);
+    });
+
     test("a pre-restart cursor replays the post-restart events (reservation gap is not an eviction)", () => {
       // GIVEN a client that saw seq 1 before the daemon restarted
       stampAndBuffer(mkEvent());
