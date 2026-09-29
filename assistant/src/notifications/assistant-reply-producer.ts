@@ -10,6 +10,7 @@
 import type pino from "pino";
 
 import { isAssistantFeatureFlagEnabled } from "../config/assistant-feature-flags.js";
+import { isToolResultOnlyUserMessage } from "../conversations/message-consolidation.js";
 import { getAttachmentMetadataForMessage } from "../persistence/attachments-store.js";
 import {
   getAttentionStateByConversationIds,
@@ -19,17 +20,22 @@ import {
   type ConversationRow,
   getConversation,
   getMessageById,
+  getRecentConversationMessages,
+  type MessageRow,
   parseMessageMetadata,
 } from "../persistence/conversation-crud.js";
 import { isReplaceableTitle } from "../persistence/conversation-title-placeholders.js";
 import {
+  isEchoSuppressedUserMessage,
   isReplyPushIneligibleUserMessage,
   resolveConversationKind,
 } from "../persistence/conversation-types.js";
 import { stringifyMessageContent } from "../persistence/message-content.js";
 import { projectPersistedAssistantContent } from "../persistence/user-facing-content.js";
 import { safeParseRecord } from "../util/json.js";
+import { workStartedAfter } from "./completion-work.js";
 import { emitNotificationSignal } from "./emit-signal.js";
+import { hasPendingBackgroundWork } from "./has-pending-background-work.js";
 import {
   describeMedia,
   mediaEmbeds,
@@ -39,9 +45,61 @@ import {
   stripMarkdownForPreview,
 } from "./notification-utils.js";
 import { resolveCompletionVisibleInSourceNow } from "./resolve-visible-in-source.js";
+import { collectRunRows } from "./result-output.js";
 
 /** Kill switch for this producer, on by default. */
 const ASSISTANT_REPLY_PUSH_FLAG = "assistant-reply-push" as const;
+const REPLY_HISTORY_PAGE_SIZE = 200;
+
+function isCurrentUnseenReply(
+  conversationId: string,
+  assistantRow: MessageRow,
+  turnBoundaryId: string,
+  startedAfter: number,
+): boolean {
+  const attention = getAttentionStateByConversationIds([conversationId]).get(
+    conversationId,
+  );
+  if (
+    !hasUnseenLatestAssistantMessage(attention) ||
+    assistantRow.createdAt <=
+      (attention?.lastSeenAssistantMessageAt ?? -Infinity)
+  ) {
+    return false;
+  }
+  let beforeMessageId: string | undefined;
+  let foundReply = false;
+  let foundLatestAttention = false;
+  // A same-turn private wrap-up can own attention while the public reply is earlier.
+  // Persisted turn boundaries also supersede replies whose projection is delayed.
+  while (true) {
+    const history = getRecentConversationMessages(
+      conversationId,
+      REPLY_HISTORY_PAGE_SIZE,
+      beforeMessageId,
+    );
+    for (let index = history.length - 1; index >= 0; index--) {
+      const row = history[index];
+      foundReply ||= row.id === assistantRow.id;
+      foundLatestAttention ||= row.id === attention?.latestAssistantMessageId;
+      if (row.role === "user" && !isToolResultOnlyUserMessage(row)) {
+        const metadata = readSuppressionMarkers(row.metadata);
+        if (
+          row.id !== turnBoundaryId &&
+          isEchoSuppressedUserMessage(metadata) &&
+          !workStartedAfter({ sentAt: row.createdAt, metadata }, startedAfter)
+        ) {
+          continue;
+        }
+        return row.id === turnBoundaryId && foundReply && foundLatestAttention;
+      }
+    }
+    if (history.length < REPLY_HISTORY_PAGE_SIZE) {
+      return false;
+    }
+    beforeMessageId = history[0].id;
+  }
+}
 
 /**
  * Flatten a title onto one line. Notification titles cannot wrap, and
@@ -177,6 +235,26 @@ export async function emitAssistantReplyNotification(params: {
     ) {
       return;
     }
+    let turnBoundaryId = userMessageId;
+    if (initiatingMetadata?.turnOutcome === "batched") {
+      if (
+        typeof initiatingMetadata.turnBatchedInto !== "string" ||
+        !initiatingMetadata.turnBatchedInto
+      ) {
+        return;
+      }
+      turnBoundaryId = initiatingMetadata.turnBatchedInto;
+    }
+
+    const firstAssistantRow = collectRunRows(
+      assistantRow,
+      conversationId,
+      initiatingMessage.createdAt,
+    )[0];
+    const startedAfter = firstAssistantRow?.createdAt ?? assistantRow.createdAt;
+    if (hasPendingBackgroundWork(conversationId, { startedAfter })) {
+      return;
+    }
 
     // A reply whose output is entirely media has no text to preview, so name
     // the media rather than suppressing a real reply. Markdown is flattened
@@ -216,6 +294,17 @@ export async function emitAssistantReplyNotification(params: {
       conversationId,
       logger: rlog,
     });
+    if (
+      hasPendingBackgroundWork(conversationId, { startedAfter }) ||
+      !isCurrentUnseenReply(
+        conversationId,
+        assistantRow,
+        turnBoundaryId,
+        startedAfter,
+      )
+    ) {
+      return;
+    }
 
     await emitNotificationSignal({
       sourceEventName: "chat.assistant_reply",

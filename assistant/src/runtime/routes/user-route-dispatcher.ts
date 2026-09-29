@@ -135,7 +135,11 @@ export class UserRouteDispatcher {
    * @returns A Response from the handler, or an error response (404, 405, 500).
    */
   async dispatch(routePath: string, request: Request): Promise<Response> {
-    if (routePath.includes("..")) {
+    // ".." covers classic dot-segment traversal. "\" is rejected alongside it
+    // because some URL normalizers treat a backslash as a path separator, so
+    // a routePath that looks in-namespace after percent-decoding can still
+    // resolve outside the routes directory once such a normalizer runs.
+    if (routePath.includes("..") || routePath.includes("\\")) {
       return httpError("BAD_REQUEST", "Path traversal is not allowed", 400);
     }
 
@@ -334,7 +338,7 @@ export class UserRouteDispatcher {
     routePath: string,
   ): Promise<Response> {
     try {
-      const result = await Promise.race([
+      return await Promise.race([
         Promise.resolve(
           handler(request, buildDeprecatedRouteContext(routePath)),
         ),
@@ -345,7 +349,6 @@ export class UserRouteDispatcher {
           ),
         ),
       ]);
-      return result;
     } catch (err) {
       if (err instanceof Error && err.message === "Handler timed out") {
         log.error(

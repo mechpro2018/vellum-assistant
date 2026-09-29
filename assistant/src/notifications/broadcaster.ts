@@ -24,6 +24,23 @@ import {
 import { isGuardianSensitiveEvent } from "./adapters/macos.js";
 import { resolveMessageText } from "./adapters/shared.js";
 import {
+  type AssistantInitiatedThreadResolution,
+  isPersistedAssistantInitiatedThread,
+  resolveAssistantInitiatedThread,
+} from "./assistant-initiated-thread.js";
+import {
+  areChatReplyAlertsDisabled,
+  CHAT_REPLY_ALERTS_DISABLED,
+} from "./chat-reply-policy.js";
+import {
+  isCompletionNotification,
+  isCompletionRecipientUnavailable,
+  isLocalNotificationSilent,
+  notificationConversationId,
+  type NotificationPresentationContext,
+  resolveCompletionRecipient,
+} from "./completion-policy.js";
+import {
   pairDeliveryWithConversation,
   type PairingResult,
 } from "./conversation-pairing.js";
@@ -240,10 +257,7 @@ export interface ConversationCreatedInfo {
   groupId?: string;
   /** Semantic source from the signal producer (e.g. "schedule", "reminder"). */
   source?: string;
-  /**
-   * Mirrors the vellum adapter's `silent` flag (true for low- and
-   * medium-urgency signals).
-   */
+  /** Mirrors the vellum adapter's resolved local presentation policy. */
   silent: boolean;
 }
 /**
@@ -256,6 +270,10 @@ export type OnConversationCreatedFn = (
 ) => void | Promise<void>;
 export interface BroadcastDecisionOptions {
   onConversationCreated?: OnConversationCreatedFn;
+  assistantInitiatedThread?: {
+    resolution: AssistantInitiatedThreadResolution;
+    platformAdded: boolean;
+  };
   /** Deadline override for tests; defaults to PLATFORM_OUTCOME_DEADLINE_MS. */
   platformOutcomeDeadlineMs?: number;
   /**
@@ -286,6 +304,7 @@ interface PendingChannelDispatch {
   destinationLabel: string;
   pairing: PairingResult;
   hasPersistedDecision: boolean;
+  presentation: NotificationPresentationContext;
 }
 
 /**
@@ -351,6 +370,15 @@ export class NotificationBroadcaster {
       decision.selectedChannels,
       guardians,
     );
+    const assistantInitiatedThread =
+      options?.assistantInitiatedThread?.resolution ??
+      resolveAssistantInitiatedThread(signal);
+    const presentation: NotificationPresentationContext = {};
+    const resolveSilent = () =>
+      isLocalNotificationSilent(
+        { ...signal, urgency: signal.attentionHints.urgency },
+        presentation,
+      );
 
     // Ensure vellum is processed first so the notification_conversation_created
     // event fires immediately, before slower channel sends (e.g. Telegram 30s
@@ -427,6 +455,21 @@ export class NotificationBroadcaster {
           await flushDeferredVellumSend();
         }
 
+        if (
+          channel === "platform" &&
+          options?.assistantInitiatedThread?.platformAdded &&
+          (!presentation.assistantInitiatedThreadCreated ||
+            signal.contextPayload.quiet === true)
+        ) {
+          results.push({
+            channel,
+            destination: destinations.get(channel)?.endpoint ?? channel,
+            status: "skipped",
+            errorMessage: "No newly persisted From me conversation for push",
+          });
+          continue;
+        }
+
         const adapter = this.adapters.get(channel);
         if (!adapter) {
           log.warn(
@@ -453,6 +496,16 @@ export class NotificationBroadcaster {
             destination: "",
             status: "skipped",
             errorMessage: `Destination not resolved for channel: ${channel}`,
+          });
+          continue;
+        }
+
+        if (isCompletionRecipientUnavailable(signal, destination)) {
+          results.push({
+            channel,
+            destination: destination.endpoint ?? channel,
+            status: "failed",
+            errorMessage: "completion recipient unavailable",
           });
           continue;
         }
@@ -546,6 +599,17 @@ export class NotificationBroadcaster {
                 conversationId: existingDelivery.conversationId,
                 messageId: existingDelivery.messageId,
               };
+              presentation.assistantInitiatedThreadCreated =
+                assistantInitiatedThread.isCandidate &&
+                existingDelivery.conversationStrategy ===
+                  "start_new_conversation" &&
+                (existingDelivery.conversationAction === "start_new" ||
+                  (existingDelivery.conversationAction === "reuse_existing" &&
+                    existingDelivery.conversationFallbackUsed === 1)) &&
+                isPersistedAssistantInitiatedThread(
+                  existingDelivery.conversationId,
+                  existingDelivery.messageId,
+                );
             }
             log.info(
               {
@@ -575,7 +639,12 @@ export class NotificationBroadcaster {
           signal,
           channel,
           copy,
-          { conversationAction, bindingContext: destination.bindingContext },
+          {
+            conversationAction,
+            bindingContext: destination.bindingContext,
+            assistantInitiatedThread:
+              channel === "vellum" ? assistantInitiatedThread : undefined,
+          },
         );
 
         if (channel === "vellum" && pairing.conversationId) {
@@ -583,6 +652,14 @@ export class NotificationBroadcaster {
             conversationId: pairing.conversationId,
             messageId: pairing.messageId,
           };
+          presentation.assistantInitiatedThreadCreated =
+            assistantInitiatedThread.isCandidate &&
+            pairing.createdNewConversation &&
+            pairing.strategy === "start_new_conversation" &&
+            isPersistedAssistantInitiatedThread(
+              pairing.conversationId,
+              pairing.messageId,
+            );
         }
 
         // For the vellum and platform channels, merge the conversationId into
@@ -601,7 +678,7 @@ export class NotificationBroadcaster {
               : pairing;
           const deepLinkConversationId =
             deepLinkPairing.conversationId ??
-            resolveSourceConversationId(signal.sourceContextId) ??
+            resolveSourceConversationId(notificationConversationId(signal)) ??
             resolveDeepLinkConversationId(signal.contextPayload);
           if (deepLinkConversationId) {
             deepLinkTarget = {
@@ -625,25 +702,27 @@ export class NotificationBroadcaster {
             typeof destination.metadata?.guardianPrincipalId === "string"
               ? destination.metadata.guardianPrincipalId
               : undefined;
-          const targetGuardianPrincipalId =
-            guardianPrincipalId &&
-            isGuardianSensitiveEvent(signal.sourceEventName)
+          const targetGuardianPrincipalId = isCompletionNotification(signal)
+            ? resolveCompletionRecipient(signal, destination)
+            : guardianPrincipalId &&
+                isGuardianSensitiveEvent(signal.sourceEventName)
               ? guardianPrincipalId
               : undefined;
 
           const conversationTitle =
             copy.conversationTitle ?? copy.title ?? signal.sourceEventName;
-          const conversationSilent =
-            signal.attentionHints.urgency !== "high" &&
-            signal.attentionHints.urgency !== "critical";
           const info: ConversationCreatedInfo = {
             conversationId: pairing.conversationId,
             title: conversationTitle,
             sourceEventName: signal.sourceEventName,
             targetGuardianPrincipalId,
-            groupId: signal.conversationMetadata?.groupId,
-            source: signal.conversationMetadata?.source,
-            silent: conversationSilent,
+            groupId:
+              assistantInitiatedThread.vellumSignal.conversationMetadata
+                ?.groupId,
+            source:
+              assistantInitiatedThread.vellumSignal.conversationMetadata
+                ?.source,
+            silent: resolveSilent(),
           };
 
           // The per-dispatch onConversationCreated callback fires whenever a vellum
@@ -673,6 +752,7 @@ export class NotificationBroadcaster {
           ) {
             if (this.onConversationCreated) {
               try {
+                info.silent = resolveSilent();
                 await this.onConversationCreated(info);
               } catch (err) {
                 log.error(
@@ -695,6 +775,7 @@ export class NotificationBroadcaster {
           deepLinkTarget,
           contextPayload: signal.contextPayload,
           urgency: signal.attentionHints.urgency,
+          silent: resolveSilent(),
           approvalContext,
           accessRequestContext,
           toolApprovalSource,
@@ -709,6 +790,7 @@ export class NotificationBroadcaster {
           destinationLabel,
           pairing,
           hasPersistedDecision,
+          presentation,
         };
 
         // Compute conversation decision audit fields for the delivery record
@@ -895,7 +977,22 @@ export class NotificationBroadcaster {
       hasPersistedDecision,
     } = dispatch;
     try {
-      const adapterResult = await adapter.send(payload, destination, observer);
+      if (channel === "vellum") {
+        payload.silent = isLocalNotificationSilent(
+          payload,
+          dispatch.presentation,
+        );
+      }
+      const adapterResult: DeliveryResult =
+        channel === "platform" &&
+        areChatReplyAlertsDisabled(signal.sourceEventName)
+          ? {
+              success: false,
+              skipped: true,
+              error: CHAT_REPLY_ALERTS_DISABLED,
+              remotePushAccepted: false,
+            }
+          : await adapter.send(payload, destination, observer);
 
       if (adapterResult.success) {
         // Prefer the channel-native id the adapter just captured (e.g.
@@ -946,13 +1043,14 @@ export class NotificationBroadcaster {
           }),
         );
       } else {
+        const status = adapterResult.skipped ? "skipped" : "failed";
         if (hasPersistedDecision) {
-          updateDeliveryStatus(deliveryId, "failed", {
+          updateDeliveryStatus(deliveryId, status, {
             message: adapterResult.error,
           });
         }
         results.push(
-          buildDeliveryResult(dispatch, "failed", {
+          buildDeliveryResult(dispatch, status, {
             errorMessage: adapterResult.error,
           }),
         );

@@ -32,16 +32,12 @@
 import type { ConversationStrategy } from "../channels/config.js";
 import { getConversationStrategy } from "../channels/config.js";
 import { type ChannelId, isChannelId } from "../channels/types.js";
-import { isAssistantInitiatedThreadsEnabled } from "../config/assistant-initiated-threads-gate.js";
 import {
   addMessage,
   createConversation,
   getConversation,
 } from "../persistence/conversation-crud.js";
-import {
-  ASSISTANT_INITIATED_SOURCE,
-  type ConversationCreateType,
-} from "../persistence/conversation-types.js";
+import type { ConversationCreateType } from "../persistence/conversation-types.js";
 import {
   findInboundConversationId,
   resolveInboundConversation,
@@ -56,6 +52,14 @@ import {
 } from "../runtime/sync/resource-sync-events.js";
 import { getLogger } from "../util/logger.js";
 import { withSqliteRetry } from "../util/sqlite-retry.js";
+import {
+  type AssistantInitiatedThreadResolution,
+  resolveAssistantInitiatedThread,
+} from "./assistant-initiated-thread.js";
+import {
+  hasPersistedCompletionResult,
+  notificationConversationId,
+} from "./completion-policy.js";
 import {
   composeConversationSeed,
   isConversationSeedSane,
@@ -99,6 +103,8 @@ export interface PairingOptions {
   conversationAction?: ConversationAction;
   /** Destination binding data for channel-scoped conversation continuation. */
   bindingContext?: DestinationBindingContext;
+  /** Reuse the resolution made before delivery policy selects channels. */
+  assistantInitiatedThread?: AssistantInitiatedThreadResolution;
 }
 
 /**
@@ -122,73 +128,9 @@ export interface PairingOptions {
  * The returned `conversationId` is that producing conversation, with
  * `createdNewConversation` false.
  *
- * Errors are caught and logged — this function never throws so the
+ * Errors are caught and logged; this function never throws so the
  * notification pipeline is not disrupted by pairing failures.
  */
-/**
- * The event the assistant emits when it has a thought worth the user's time
- * ("assistant.share" - the notifications skill's default), as opposed to a
- * transactional request or a system alert.
- */
-const ASSISTANT_SHARE_EVENT = "assistant.share";
-const ASSISTANT_REPLY_EVENT = "chat.assistant_reply";
-
-/**
- * Promote a background share into an assistant-initiated thread, under the
- * `assistant-initiated-threads` flag.
- *
- * The heartbeat's "have a thought, share it" path emits an assistant.share
- * signal from its own background conversation, and the passive-vellum rule
- * below would append the body there - a row the sidebar never shows. When the
- * section exists, that share is exactly what it is for, so the signal is
- * rewritten to materialize a fresh standard conversation stamped
- * {@link ASSISTANT_INITIATED_SOURCE}, which is the section's membership mark.
- *
- * Deliberately narrow, in every direction it can be:
- * - vellum channel only: other channels deliver the share as a native
- *   message and need no in-app thread;
- * - assistant.share only: transactional events keep their own pairing
- *   rules, and their threads stay out of the section by source;
- * - only when the producing conversation is a background/scheduled run (or
- *   nothing resolvable): a share emitted from inside a user-facing thread
- *   keeps the append, since the user is already looking at that thread;
- * - never over an explicit `conversationMetadata.source` or an existing
- *   `requiresConversation`: a producer that declared its own filing wins.
- *
- * Flag off, the signal passes through untouched and shares keep the passive
- * append: nothing changes for anyone outside the rollout.
- */
-function withAssistantInitiatedThread(
-  signal: NotificationSignal,
-  channel: NotificationChannel,
-): NotificationSignal {
-  if (
-    channel !== "vellum" ||
-    signal.sourceEventName !== ASSISTANT_SHARE_EVENT ||
-    signal.requiresConversation === true ||
-    signal.conversationMetadata?.source !== undefined ||
-    !isAssistantInitiatedThreadsEnabled()
-  ) {
-    return signal;
-  }
-  const producing = getConversation(signal.sourceContextId);
-  if (
-    producing &&
-    producing.conversationType !== "background" &&
-    producing.conversationType !== "scheduled"
-  ) {
-    return signal;
-  }
-  return {
-    ...signal,
-    requiresConversation: true,
-    conversationMetadata: {
-      ...signal.conversationMetadata,
-      source: ASSISTANT_INITIATED_SOURCE,
-    },
-  };
-}
-
 export async function pairDeliveryWithConversation(
   rawSignal: NotificationSignal,
   channel: NotificationChannel,
@@ -196,7 +138,13 @@ export async function pairDeliveryWithConversation(
   options?: PairingOptions,
 ): Promise<PairingResult> {
   try {
-    const signal = withAssistantInitiatedThread(rawSignal, channel);
+    const signal =
+      channel === "vellum"
+        ? (
+            options?.assistantInitiatedThread ??
+            resolveAssistantInitiatedThread(rawSignal)
+          ).vellumSignal
+        : rawSignal;
     const strategy = getConversationStrategy(channel as ChannelId);
 
     if (strategy === "not_deliverable" || strategy === "push_only") {
@@ -265,14 +213,14 @@ export async function pairDeliveryWithConversation(
     // notification can appear. The home feed aims its "Go to Conversation"
     // button at the same row whenever it mirrors the signal.
     //
-    // `chat.assistant_reply` already has its complete reply in that transcript.
-    // Its notification body is a lock-screen preview, so appending it would
+    // Reply and explicit background completions have their result persisted.
+    // Their notification body is a lock-screen preview, so appending it would
     // create a second, truncated assistant row. Keep the conversation target
     // for deep links without writing the preview into the transcript.
     if (
       strategy === "start_new_conversation" &&
       !signal.requiresConversation &&
-      signal.sourceEventName === ASSISTANT_REPLY_EVENT
+      hasPersistedCompletionResult(signal)
     ) {
       return {
         conversationId: resolveSourceConversation(signal)?.id ?? null,
@@ -771,11 +719,12 @@ async function resolveChannelDeliveryHome(params: {
 function resolveSourceConversation(
   signal: NotificationSignal,
 ): { id: string; conversationType?: string } | null {
-  if (!signal.sourceContextId) {
+  const conversationId = notificationConversationId(signal);
+  if (!conversationId) {
     return null;
   }
   try {
-    const row = getConversation(signal.sourceContextId);
+    const row = getConversation(conversationId);
     return row ? { id: row.id, conversationType: row.conversationType } : null;
   } catch {
     return null;

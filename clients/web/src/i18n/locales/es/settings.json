@@ -328,9 +328,6 @@
   "billingPage": {
     "billingTab": "Facturación",
     "billingUnavailable": "La facturación no está disponible para el estado actual del asistente.",
-    "finishSetupBody": "La dirección de correo de tu asistente aún no se ha configurado.",
-    "finishSetupButton": "Finalizar configuración",
-    "finishSetupTitle": "Termina de configurar tu plan {plan}",
     "loadingBilling": "Cargando facturación…",
     "platformLoginNotice": "Inicia sesión en la plataforma Vellum para administrar la facturación y el uso.",
     "usageTab": "Uso"
@@ -767,25 +764,6 @@
     "thinking": "Pensando…",
     "title": "Doctor"
   },
-  "domainField": {
-    "subdomainAriaLabel": "Subdominio"
-  },
-  "domainStep": {
-    "continue": "Continuar",
-    "domainLockedMessage": "Este dominio ya está establecido y no se puede cambiar.",
-    "domainSetRedirecting": "Dominio establecido. Redirigiendo…",
-    "handleImmutableNotice": "No podrás cambiar el identificador una vez establecido.",
-    "handleLabel": "Identificador (público)",
-    "machineBusyNotice": "Tu asistente se está reiniciando; podrás establecer el dominio en un momento.",
-    "next": "Siguiente",
-    "prefixLabel": "Prefijo",
-    "registerSubdomainFailed": "No se pudo registrar ese subdominio. Prueba con otro.",
-    "skip": "Omitir",
-    "subtitle": "Configura un correo para tu asistente.",
-    "title": "Correo del asistente",
-    "emailUsernamePlaceholder": "hola",
-    "subdomainExamplePlaceholder": "mi-asistente"
-  },
   "downgradeReconfirmModal": {
     "body": "Al bajar de plan se eliminan las siguientes funciones Pro:",
     "confirm": "Confirmar bajada de plan",
@@ -1163,7 +1141,7 @@
     "titleGeneric": "Obtén la app móvil de Vellum"
   },
   "notificationsPage": {
-    "description": "Administra cómo Vellum te notifica en este dispositivo Android.",
+    "description": "Administra cómo Vellum te notifica en este dispositivo.",
     "title": "Notificaciones"
   },
   "overridesCallSiteList": {
@@ -1274,6 +1252,10 @@
     "alreadyOnPlanToast": "Ya estás en este plan.",
     "checkoutFailedToast": "No se pudo iniciar el pago de la mejora. Inténtalo de nuevo.",
     "current": "Actual",
+    "dailyUsageBar": "Uso diario, se reinicia a las {resetPhrase}",
+    "dailyUsageExhausted": "Has usado el uso gratuito de hoy. Añade créditos para seguir usando tu asistente",
+    "dailyUsageResets": "Se reinicia a las {resetPhrase}",
+    "dailyUsageTitle": "Uso diario",
     "endsOn": "Tu plan termina el {date}.",
     "freeForever": "Gratis para siempre",
     "heading": "Plan",
@@ -1284,13 +1266,14 @@
     "powerUp": "Potenciar",
     "powerUpFor": "Potenciar por +{amount}/mes",
     "usageBalanceAddCredits": "Añadir",
-    "usageBalanceBarRenews": "Uso actual, se renueva el {date}",
-    "usageBalanceBarResets": "Uso actual, se restablece el {date}",
+    "usageBalanceBarRenews": "Uso mensual, se renueva el {date}",
+    "usageBalanceBarResets": "Uso mensual, se restablece el {date}",
     "usageBalanceExhausted": "Añade créditos para seguir usando tu asistente",
     "usageBalancePctUsed": "{pct}% usado",
     "usageBalanceRenews": "Se renueva el {date}",
     "usageBalanceResets": "Se restablece el {date}",
-    "usageBalanceTitle": "Uso actual",
+    "usageBalanceTitleMonthly": "Uso mensual",
+    "usageBalanceTitleOverall": "Uso total",
     "usageChip": "Uso de {name}, se restablece cada mes",
     "viewAllPlans": "Ver todos los planes"
   },
@@ -1549,6 +1532,7 @@
     "title": "Modalidades"
   },
   "profileRow": {
+    "autoRouting": "Dirige cada mensaje a Balanced, Quality, Budget o Fast con Jev, un modelo de decisión de TypeSafe",
     "actionsAriaLabel": "Acciones para {displayName}",
     "defaultTag": "Predeterminado",
     "delete": "Eliminar",
@@ -1896,6 +1880,7 @@
     "confirmAndSwitch": "Confirmar y cambiar",
     "confirmLabel": "Teleportar",
     "confirmMessage": "Tus datos se copiarán al nuevo entorno. El asistente actual seguirá disponible hasta que confirmes que el nuevo funciona.",
+    "confirmWarning": "El chat no estará disponible hasta que termine la teleportación.",
     "dockerDescriptionLinux": "Ejecuta tu asistente en un contenedor Docker en este equipo.",
     "dockerDescriptionMacos": "Ejecuta tu asistente en un contenedor Docker en este Mac.",
     "dockerDescriptionWindows": "Ejecuta tu asistente en un contenedor Docker en este PC.",
@@ -1941,9 +1926,12 @@
     "teleportFailed": "La teleportación falló: {message}",
     "teleportFailedUnknown": "La teleportación falló.",
     "title": "Teleport",
+    "transferringNote": "Esto puede tardar un poco. Mantén la app abierta hasta que termine.",
+    "transferringTitle": "Teleportando asistente...",
     "tryAgain": "Intentar de nuevo",
     "unsupportedDestination": "Destino de teleportación no compatible.",
-    "verifyTitle": "Transferencia completa: verifica que tu nuevo asistente funciona."
+    "verifyMessage": "Verifica que tu nuevo asistente funciona y luego confirma para cambiar a él.",
+    "verifyTitle": "Transferencia completa"
   },
   "textToSpeechCard": {
     "subtitle": "Configura cómo habla tu asistente",
@@ -2272,6 +2260,10 @@
     "title": "Voz",
     "titleWithName": "Voz de {name}"
   },
+  "voiceStartConfirmationToggle": {
+    "description": "Al pulsar dos veces la tecla de voz, primero se pide confirmación.",
+    "label": "Preguntar antes de iniciar un chat de voz"
+  },
   "webFetchCard": {
     "apiBaseHint": "Déjalo vacío para el valor predeterminado en la nube ({defaultBase}).",
     "apiBaseLabel": "Base de la API",
@@ -2427,5 +2419,15 @@
     "percentValue": "{percent}%",
     "centsValue": "{cents} ¢",
     "playEnd": "Reproducir tono final"
+  },
+  "browserNotificationSettingsCard": {
+    "title": "Notificaciones del navegador",
+    "grantedDescription": "Las notificaciones están permitidas en este navegador.",
+    "deniedDescription": "Las notificaciones están bloqueadas. Permite las notificaciones de este sitio en la configuración del navegador.",
+    "unsupportedDescription": "Este navegador no admite notificaciones del sistema.",
+    "promptDescription": "Activa las notificaciones para saber cuándo está lista una respuesta o una tarea solicitada.",
+    "checkingDescription": "Comprobando el permiso de notificaciones…",
+    "openTabDescription": "Mantén una pestaña de Vellum abierta para recibir avisos. Cerrar o suspender la pestaña, o perder la conexión, pausa la entrega.",
+    "enable": "Activar notificaciones"
   }
 }

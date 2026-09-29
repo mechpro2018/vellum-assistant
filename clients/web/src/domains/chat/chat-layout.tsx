@@ -90,11 +90,11 @@ import { StatusBanner } from "@/components/status-banner";
 import { AssistantSleepStage } from "@/domains/chat/components/assistant-sleep-stage";
 import { useAssistantSleepStageStore } from "@/stores/assistant-sleep-stage-store";
 import { AssistantSideMenu } from "@/domains/chat/components/assistant-side-menu";
-import { AssistantInboxRailEntry } from "@/domains/assistant-inbox/components/assistant-inbox-rail-entry";
 import { PreferencesMenu } from "@/domains/chat/components/preferences-menu";
 import { useCommandPaletteOrchestrator } from "@/domains/chat/hooks/use-command-palette-orchestrator";
 import { useAssistantIdentityStore } from "@/stores/assistant-identity-store";
 import { ResearchResultsOverlay } from "@/domains/chat/onboarding-research/research-results-overlay";
+import { AssistantEmailIntro } from "@/components/feature-intro/assistant-email-intro";
 import { OnboardingCheckinOverlay } from "@/components/onboarding-checkin-overlay";
 import { OnboardingAvatarApplier } from "@/components/onboarding-avatar-applier";
 import { VoiceSessionPillHost } from "@/domains/chat/components/voice-session-pill-host";
@@ -1050,19 +1050,12 @@ export function ChatLayout({
         args.variant === "overlay" ? topBarAccessory : undefined
       }
       footerAction={
-        /* The inbox entry sits directly above Preferences and renders
-           nothing at all unless its flag, the platform gate, and the
-           user's own dismissal all allow it, so the foot of the rail is
-           unchanged for everyone else. */
-        <div className="flex flex-col gap-2">
-          <AssistantInboxRailEntry assistantId={assistantId} />
-          <PreferencesMenu
-            assistantId={assistantId}
-            assistantVersion={assistantVersion}
-            activeConversationId={activeConversationId}
-            triggerVariant={args.variant === "overlay" ? "pill" : "item"}
-          />
-        </div>
+        <PreferencesMenu
+          assistantId={assistantId}
+          assistantVersion={assistantVersion}
+          activeConversationId={activeConversationId}
+          triggerVariant={args.variant === "overlay" ? "pill" : "item"}
+        />
       }
       onClose={args.onClose}
     />
@@ -1256,6 +1249,10 @@ export function ChatLayout({
           shown over the streaming research output until connect/skip. Self-gates
           on `checkinPending`; top-level so it can compose the onboarding screen. */}
       <OnboardingCheckinOverlay />
+      {/* The one-time intro to Assistant Email, over the chat on the first
+          open after the feature lands; gates itself on the device's memory,
+          the flag, the inbox's state and the onboarding takeover. */}
+      <AssistantEmailIntro />
       {/* Applies the research-onboarding picker's avatar once the assistant is
           hatched (avatar isn't part of the pre-chat handoff context). */}
       <OnboardingAvatarApplier />

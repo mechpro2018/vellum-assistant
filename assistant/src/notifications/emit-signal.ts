@@ -27,6 +27,7 @@ import { VellumAdapter } from "./adapters/macos.js";
 import { PlatformPushAdapter } from "./adapters/platform.js";
 import { SlackAdapter } from "./adapters/slack.js";
 import { TelegramAdapter } from "./adapters/telegram.js";
+import { resolveAssistantInitiatedThread } from "./assistant-initiated-thread.js";
 import {
   type ConversationCreatedInfo,
   NotificationBroadcaster,
@@ -428,6 +429,8 @@ export async function emitNotificationSignal<TEventName extends string>(
       });
     }
 
+    const assistantInitiatedThread = resolveAssistantInitiatedThread(signal);
+
     // Step 2: Evaluate the signal through the decision engine
     const connectedChannels = await getConnectedChannels();
 
@@ -444,6 +447,9 @@ export async function emitNotificationSignal<TEventName extends string>(
     // steps (2.5a/2.5b/2.5c) so any of them replacing the decision triggers
     // the re-persist and the stored row matches what is dispatched.
     const prePolicyDecision = decision;
+    let platformConfigured: Promise<boolean> | undefined;
+    const platformIsConfigured = () =>
+      (platformConfigured ??= isPlatformClientConfigured());
 
     // Step 2.5a: High/critical urgency signals always get both the in-app
     // system notification (vellum) and the remote push (platform),
@@ -497,7 +503,7 @@ export async function emitNotificationSignal<TEventName extends string>(
       }
       if (
         !selectedChannels.includes("platform") &&
-        (await isPlatformClientConfigured())
+        (await platformIsConfigured())
       ) {
         selectedChannels.push("platform");
         forcedChannels.push("platform");
@@ -512,7 +518,22 @@ export async function emitNotificationSignal<TEventName extends string>(
     }
 
     // Step 2.5b: Enforce routing intent policy (fire-time guard).
-    // An exclusive allowlist already closed the channel set.
+    // An exclusive allowlist already closed the channel set. An access request
+    // routed to every channel is delivered even when the decision engine
+    // suppressed it (step 2.5c never lets one go undelivered), so it is made
+    // deliverable first: routing enforcement leaves a suppressed decision
+    // alone, which would leave the request on the in-app card alone.
+    if (
+      signal.sourceEventName === "ingress.access_request" &&
+      signal.routingIntent === "all_channels" &&
+      !decision.shouldNotify
+    ) {
+      decision = {
+        ...decision,
+        shouldNotify: true,
+        reasoningSummary: `${decision.reasoningSummary} (notify forced: access request routed to all channels)`,
+      };
+    }
     if (!exclusiveAllowlist) {
       decision = enforceRoutingIntent(
         decision,
@@ -544,9 +565,30 @@ export async function emitNotificationSignal<TEventName extends string>(
       };
     }
 
+    let assistantInitiatedPlatformAdded = false;
+    if (
+      assistantInitiatedThread.isCandidate &&
+      decision.shouldNotify &&
+      decision.selectedChannels.includes("vellum") &&
+      !decision.selectedChannels.includes("platform") &&
+      !(
+        "quiet" in signal.contextPayload && signal.contextPayload.quiet === true
+      ) &&
+      signal.routingIntent !== "single_channel" &&
+      !exclusiveAllowlist &&
+      (await platformIsConfigured())
+    ) {
+      assistantInitiatedPlatformAdded = true;
+      decision = {
+        ...decision,
+        selectedChannels: [...decision.selectedChannels, "platform"],
+        reasoningSummary: `${decision.reasoningSummary} (platform added: assistant-initiated thread candidate)`,
+      };
+    }
+
     // Re-persist the decision if any policy step changed it (urgency channel
-    // forcing, routing intent enforcement, or the access-request vellum
-    // floor), so the stored decision row matches what is actually dispatched.
+    // forcing, routing intent enforcement, the access-request vellum floor,
+    // or the From me push default), so the audit matches the dispatch.
     if (decision !== prePolicyDecision && decision.persistedDecisionId) {
       try {
         updateDecision(decision.persistedDecisionId, {
@@ -619,6 +661,10 @@ export async function emitNotificationSignal<TEventName extends string>(
       {
         onConversationCreated: params.onConversationCreated,
         resultsSink: channelResults,
+        assistantInitiatedThread: {
+          resolution: assistantInitiatedThread,
+          platformAdded: assistantInitiatedPlatformAdded,
+        },
       },
     );
 

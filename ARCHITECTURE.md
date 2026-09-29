@@ -11,6 +11,7 @@ This file is the cross-system architecture index. Detailed designs live in domai
 | Browser extension                           | [`clients/chrome-extension/README.md`](clients/chrome-extension/README.md)                         |
 | Clients (web, iOS, Android, macOS, Windows) | [`clients/README.md`](clients/README.md)                                                           |
 | Mobile document chat session                | [`clients/web/docs/DOCUMENT_CHAT.md`](clients/web/docs/DOCUMENT_CHAT.md)                           |
+| Native live camera sampling                 | [`clients/android/README.md`](clients/android/README.md#live-camera-sampling)                       |
 | Conversation assets                         | [`clients/web/docs/CONVERSATION_ASSETS.md`](clients/web/docs/CONVERSATION_ASSETS.md)               |
 | Public docs site (`clients/docs`)           | [`clients/docs/README.md`](clients/docs/README.md)                                                 |
 | Assistant memory deep dive                  | [`assistant/docs/architecture/memory.md`](assistant/docs/architecture/memory.md)                   |
@@ -29,6 +30,8 @@ This file is the cross-system architecture index. Detailed designs live in domai
 | Workflow orchestration engine               | [Workflow Orchestration Engine](#workflow-orchestration-engine) (this file)                        |
 | Watch sessions                              | [Watch Sessions](#watch-sessions) (this file)                                                      |
 | Screen annotation                           | [Screen Annotation](#screen-annotation) (this file)                                                |
+| Completion notifications                    | [Completion Notifications](#completion-notifications) (this file)                                 |
+| From me chat notifications                  | [From Me Chat Notifications](#from-me-chat-notifications) (this file)                              |
 | Notification sender avatars                 | [Notification Sender Avatars](#notification-sender-avatars) (this file)                            |
 | Workflow authoring guide                    | [`assistant/docs/workflows.md`](assistant/docs/workflows.md)                                       |
 | Workflow manual testing runbook             | [`assistant/docs/workflows-testing.md`](assistant/docs/workflows-testing.md)                       |
@@ -625,6 +628,12 @@ subgraph "Text Q&A Session"
     classDef provider fill:#ef5350,stroke:#c62828,color:#fff
 ```
 
+Computer-use observations pass screenshots through the shared transport
+optimizer before formatting their metadata. Screenshot dimensions come from
+the emitted image bytes. Full-desktop results include per-axis conversion to
+screen points; window/display-scoped captures do not derive this mapping from
+the main display's dimensions. Actions keep their existing screen-point units.
+
 Computer-use screenshots are materialized as canonical attachment rows while
 their tool-result messages are finalized. Every screenshot keeps that
 tool-result link. At turn completion, only the last screenshot-bearing
@@ -777,6 +786,12 @@ When selected text is supplied, the same call site distinguishes a requested edi
 
 On macOS, the global voice key distinguishes an empty selection from an unavailable capture. The native helper activates Chromium accessibility, and Electron retries warmup reads against the original key hold and foreground process. An unavailable capture stops insertion and preserves the spoken words for copying; it cannot fall through to raw-transcript dictation. See [the macOS bridge contract](clients/macos/README.md).
 
+On macOS, starting a call with the global voice key asks first, on a card in the
+companion surface, before microphone capture. "Always start" is stored on the
+device. Active calls keep their companion controls visible over other
+apps regardless of the idle companion's hide preference; ending the call
+restores that preference.
+
 ## Live Voice Task Outcomes
 
 Subagent updates for a conversation with an active live-voice call are claimed by
@@ -921,11 +936,15 @@ The assistant Dockerfile installs the X server, window manager, dock, compositor
 
 Openbox loads a generated `data/desktop-panel/openbox.xml` with one workspace and no workspace-switching bindings or menus. Native window decorations use a plain dark title bar with minimize, maximize and close controls. The generator adapts the existing user config or the installed system config, preserving window controls, shortcuts and application menus in managed copies. Nested XML includes are adapted into managed copies with their original lookup bases and XPointer selections preserved. Source files remain unchanged. If a custom XML configuration cannot be adapted, Openbox loads the existing source config and a warning is logged, preserving desktop availability. Restored windows are assigned to the sole workspace, and session-manager restoration is disabled. Each process tree owns a fresh X display; viewer reconnects retain its existing windows. The config is regenerated at desktop start, so existing installations adopt it without changing browser profiles or dock preferences.
 
-Children receive only an allowlisted environment. One viewer holds the slot at a time; the tree lingers for 24 hours after both the viewer and browser automation release their slots. Chrome launches once when the desktop starts. Closing or crashing Chrome leaves the desktop running, and viewer reconnects keep it closed; the dock launcher or an explicit browser CLI action can reopen it. Required child failures tear down the tree, while cosmetic dock/compositor failures leave the desktop running. Dock startup failures and exits receive up to three restart attempts per desktop session, one second apart. Shutdown uses SIGTERM followed by SIGKILL after a two-second grace, and a subsequent start waits for teardown. The `assistant-desktop` flag, `IS_PLATFORM` and `IS_CONTAINERIZED` gate both setup and streaming. Self-hosted Docker assistants cannot use the virtual desktop. The stream rechecks the gate after asynchronous startup and before forwarding either direction of traffic; revocation closes the viewer with `4008` and releases its slot. The companion platform PR adds authenticated desktop routing through velay; it does not change pod memory or shared-memory provisioning.
+Children receive only an allowlisted environment. One viewer holds the slot at a time; the tree lingers for 8 hours after both the viewer and browser automation release their slots. Chrome launches once when the desktop starts. Closing or crashing Chrome leaves the desktop running, and viewer reconnects keep it closed; the dock launcher or an explicit browser CLI action can reopen it. Required child failures tear down the tree, while cosmetic dock/compositor failures leave the desktop running. Dock startup failures and exits receive up to three restart attempts per desktop session, one second apart. Shutdown uses SIGTERM followed by SIGKILL after a two-second grace, and a subsequent start waits for teardown. The `assistant-desktop` flag, `IS_PLATFORM` and `IS_CONTAINERIZED` gate both setup and streaming. Self-hosted Docker assistants cannot use the virtual desktop. The stream rechecks the gate after asynchronous startup and before forwarding either direction of traffic; revocation closes the viewer with `4008` and releases its slot. The companion platform PR adds authenticated desktop routing through velay; it does not change pod memory or shared-memory provisioning.
 
 Plank runs on the managed desktop D-Bus session with private XDG configuration/data paths and the keyfile settings backend; its BAMF matcher is activated on that shared bus. The manager retains each exited dock group during recovery so its applications keep running, then clears all surviving groups at teardown. Shutdown cancels pending dock restarts. Chrome and Terminal launchers use their real X11 identities, with Chrome's official packaged icon and stable window class. Pinned launchers represent running applications, with Plank providing focus, minimize/restore, window selection, and explicit new-window gestures. Default pins and preferences are published atomically on first use; subsequent starts refresh managed launcher paths while preserving user customization. The Files launcher opens Thunar in the assistant workspace. Thunar, GVfs (Trash), Tumbler (thumbnails), and the Adwaita icon theme are included in the assistant image. All desktop children, including D-Bus-activated services, share the dock's private XDG configuration/data paths so file preferences and Trash agree across processes. Workspace migration 157 adds the Files pin to existing docks while preserving other pins and preferences; subsequent starts respect unpinning. An image missing required desktop components fails setup.
 
+Virtual desktop Chrome enables balanced Memory Saver through the managed policies `HighEfficiencyModeEnabled=true` and `MemorySaverModeSavings=1`. Chrome can discard eligible inactive tabs to release memory; selecting a discarded tab reloads its page.
+
 Before launching Chrome or exposing its dock launcher, the Linux container session writes `CommandLineFlagSecurityWarningsEnabled=false` and `PasswordManagerEnabled=false` to `/etc/opt/chrome/policies/managed/vellum-desktop.json`. The extracted Google Chrome binary reads this system policy directory independently of its install location. This idempotent startup step covers fresh and previously installed desktops, preserves other policy files and unrelated values, and logs policy write failures without blocking the desktop. The policy hides command-line security warnings after Chrome restarts; it does not re-enable the sandbox or change launch flags. Password saving is disabled to suppress save-password prompts during automation; previously saved passwords remain usable. Chrome does not silently save new passwords with this policy. Host Chrome policies are untouched.
+
+The same managed policy file sets `NetworkPredictionOptions=2` to disable speculative DNS prefetching, TCP/SSL preconnections, and page prerendering in virtual desktop Chrome. This avoids speculative background work at the cost of potential navigation latency.
 
 `desktop-wallpaper.ts` runs `desktop-wallpaper-renderer.ts` in a short-lived worker process. The renderer reads the current avatar manifest and reuses the notification avatar renderer for character and uploaded images. It composites the avatar over a dark, accent-tinted background with subtle rings and raised lettering reading `[assistant name] OS`. The wordmark reads the existing identity name, falls back to `Vellum OS` for unset identities, escapes XML, and measures text to fit long names using the desktop setup fonts. The session manager refreshes `data/desktop-panel/wallpaper.png` on desktop start and viewer reconnect, then runs `feh --no-fehbg --bg-fill` on the existing display. Identity and avatar reads, rendering, and PNG encoding all run in that worker. Missing character rasters are generated in memory; the worker never writes avatar manifests, images, or sidecars. It has a 30-second timeout and returns its PNG through a private temporary directory that is removed after completion or failure. Rendering and application are cosmetic and do not delay Chrome or fail the stream. A missing or unreadable avatar leaves the gradient and rings; unavailable native rendering leaves the X background unchanged. Reconnects during a render queue one fresh render of the latest avatar and discard the superseded result. Generation checks discard renders and queued refreshes after teardown. Wallpaper generation runs on demand under the existing flag.
 
@@ -961,6 +980,8 @@ For live-voice clients that advertise `lookFrames`, a `LOOK:SCREEN` control obta
 
 **Voice discovery.** The screen-share client sends `update_config.screenSharing` at share start, stop, and reconnect. Tool-capable macOS voice turns with a shared screen load the current `screen-annotation` instructions and tool schemas through the read-only skill loader into their turn context. Preactivation registers executable tools; this load also tells the model how to call them through `skill_execute`, independently of memory skill-card selection. The connected same-actor annotation capability still gates the load. Front-door turns remain toolless, and older clients that omit the optional field retain ordinary skill discovery.
 
+**Names offered before the first lookup.** At share start, at a look, and as the user starts talking, the screen-share client reads the surface's named controls (`vellum:companion:shareTargets`, the helper's `ax.candidates`, the same clipped set `ax.locate` resolves against) once its frame is in hand, and sends the snapshot on `update_config.shareTargets`. Electron main prunes it (`clients/macos/src/main/share-targets.ts`: no 1pt rows, no controls whose middle is off the surface, one entry per exact name with a duplicate count, at most 40 with interactive roles first) and gives each entry a stable id from its role and name plus its nearest named container. The live-voice session keeps the newest snapshot until the share ends, and a tool-capable leg that loads the annotation instructions also receives it as a `<shared_screen_controls>` block (`assistant/src/live-voice/share-targets.ts`): exact names, role, section and a coarse position word, no coordinates. The model can then pass a tree name such as `root_Filters` on its first attempt instead of learning it from a failed lookup. A client or helper without the read sends nothing, and the turn falls back to the lookup's own candidate list.
+
 **Answered in Electron main, not in the helper.** `PointAtExecutor` (`clients/macos/src/main/executors/host-cu-executor.ts`) intercepts the pointing tool and forwards every other tool to the shared native helper. The frame the marks land on belongs to this client, and the shared executor is the transport every desktop client uses. The painter itself is handed in by `host-proxy-adapter.ts` rather than imported, since an executor reaching into the window layer would be the transport depending on what it transports to.
 
 **A name is resolved, not estimated.** A mark either names a control (`{target}`) or gives bounds. Naming is the path that works: `showCompanionCoachmarks` asks the helper's `ax.locate` for the frame the accessibility tree already holds (`AXTargetMatch`, exact match or nothing, with candidates clipped to what can actually be seen on the shared surface), then converts screen points to fractions of that surface. Bounds are for what has no label to find it by, and are the model's guess at where the thing is. `AXTargetMatch` refuses anything it fits more than once: a ring drawn confidently around the wrong control is worse than one not drawn, because the person following it cannot tell.
@@ -985,6 +1006,7 @@ graph LR
     LOCATE["ax.locate<br/>AXTargetMatch · clipped"]
     FRAME["Watch frame<br/>companion-coachmarks.tsx"]
 
+    CANDS["ax.candidates<br/>share-targets.ts · pruned"] -->|"update_config.shareTargets · offered before the first call"| SKILL
     SKILL --> BRIDGE
     BRIDGE --> ROUTE
     ROUTE -->|"dispatch to the claiming client"| SSE
@@ -1000,6 +1022,47 @@ graph LR
     PRESS -->|"input.pressed · index"| PAINT
     PAINT -->|"coachmarkPressed · label"| TURN["root layout<br/>coachmark-press-turn · sendText"]
 ```
+
+## Completion Notifications
+
+Unseen replies, non-quiet scheduled results, and explicitly identified background results enter the existing `emitNotificationSignal()` pipeline. Completion presentation is resolved independently of urgency: ordinary completions can produce a local banner without becoming high-priority alerts. Local previews require the canonical recipient principal and use targeted `notification_intent` delivery. The existing platform route retains mobile push ownership and acknowledgement handling.
+
+Completion suppression uses the intended recipient's fresh presence in the result conversation. Browser presence requires a visible, focused window; Electron supplies its authoritative window attention. Activity elsewhere on the computer does not count as attending the result. Parent continuations own delegated task and background-tool completion alerts after the user-facing result is persisted. Scheduled runs retain their existing owner, while private output, silent work, and pending child work do not announce completion.
+
+Open desktop-browser tabs keep their existing event stream connected while hidden. Notification permission is requested through an explicit settings action. Same-origin browser tabs coordinate posting through Web Locks and a bounded receipt ledger scoped to account, assistant, and delivery identity. Where those APIs are unavailable, page-local deduplication and a stable OS tag provide best-effort delivery. Closing, freezing, or discarding the tab stops the live-delivery guarantee; reconnect restores normal conversation and feed state.
+
+```mermaid
+flowchart LR
+    Reply[Final unseen reply] --> Signal[Notification signal]
+    Schedule[Scheduled result] --> Signal
+    Parent[Persisted parent continuation] --> Signal
+    Signal --> Policy[Presence and completion policy]
+    Policy --> Local[Recipient-targeted local intent]
+    Policy --> Platform[Existing mobile push route]
+    Local --> Desktop[Electron notification owner]
+    Local --> Browser[Browser tab delivery owner]
+```
+
+See [notification delivery](assistant/src/notifications/README.md) and [web lifecycle events](clients/web/docs/EVENT_BUS.md).
+
+## From Me Chat Notifications
+
+Assistant-authored shares from background or scheduled work can create a chat in From me under `assistant-initiated-threads`. `assistant-initiated-thread.ts` resolves promotion for vellum pairing, then verifies the new conversation's source, visibility, placement, and persisted seed before enabling an alert. Successful creation can produce a local banner at the share's original urgency and add the existing mobile push route when configured. Quiet intent, notification suppression, exclusive channel selection, and single-channel routing retain precedence.
+
+The broadcaster pairs vellum first so local and remote taps address the new conversation and message. Reuse and failed persistence do not enable this additional alert; duplicate delivery rows preserve the destination for a missing platform dispatch. The existing bounded wait and accepted-platform metadata coordinate remote and local mobile delivery. macOS uses the live native bridge while running, including hidden and minimized windows. iOS uses the existing APNs route. Android, other Electron clients, and open browser tabs share these transport policies. No historical scan, additional client subscription, or macOS push after Quit is involved.
+
+```mermaid
+flowchart LR
+    Share[Assistant-authored share] --> Routing[Existing notification routing]
+    Routing --> Pair[Vellum conversation pairing]
+    Pair --> Verify[New From me chat and seed persisted]
+    Verify --> Local[Non-silent local intent]
+    Verify --> Platform[Permitted mobile push]
+    Local --> Native[Running native client or open browser]
+    Platform --> Mobile[Existing APNs and Android delivery]
+```
+
+See [From me chat alerts](assistant/src/notifications/README.md#from-me-chat-alerts) for routing, replay, and delivery limits.
 
 ## Notification Sender Avatars
 

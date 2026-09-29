@@ -107,6 +107,23 @@ A subset of push signals — inbound deep links being the canonical case — can
 
 ---
 
+## Voice shortcut confirmation
+
+The macOS voice key asks before starting a call. The main renderer publishes a
+card through the companion popover
+(`domains/chat/voice/voice-shortcut-confirmation.ts`), and main keeps the
+companion on screen while it is published, over other apps and over Vellum's
+own window, so nothing is raised. "Always start" persists the opt-out in the
+`voiceStartConfirmationSkipped` device setting. Another double tap, a hold, unmount,
+assistant changes, and calls started while the card is up withdraw it without
+starting a call. A double-tap during an active call ends it without asking.
+
+The macOS companion's hide preference controls its idle state. An active call
+keeps its controls on screen while another app is in front. Ending the session
+or losing its renderer restores the saved idle preference.
+The desktop receives the connecting state before the iOS avatar is encoded, so
+an image load cannot delay its microphone controls.
+
 ## Companion dictation recovery
 
 The main renderer exclusively publishes companion context. When a voice-key
@@ -180,3 +197,9 @@ yields its floating level before either action so it cannot follow an
 authentication dialog or stay above it. Cancellation is scoped to the requesting
 tour renderer. Older shells omit this bridge and keep the existing coachmark
 permission actions. The shared preload factory is installed only by macOS.
+
+The guide uses design-library cards, buttons, typography, and the app's selected
+theme. Its app tile and native drag image track the shared assistant avatar
+cache, with the helper bundle icon as a fallback. The avatar accent tints the
+guide through the same scoped variables as the intro modal. The drag payload
+remains the actual helper app bundle.

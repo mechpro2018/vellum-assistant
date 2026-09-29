@@ -1,12 +1,51 @@
-import { Check, Sparkles } from "lucide-react";
-import type { CSSProperties, ReactNode } from "react";
+import { Check, Zap } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Button, cn } from "@vellumai/design-library";
 
-import { useAssistantAvatar } from "@/hooks/use-assistant-avatar";
 import { useTranslation } from "@/i18n";
 
-import { AddressPill } from "./address-pill";
+export interface AssistantInboxPerksProps {
+  /** Empty when the assistant has no name yet; the copy then says "your assistant". */
+  assistantName: string;
+  rootDomain: string;
+}
+
+/**
+ * The three perks of managed email as the design's pill rows with a green
+ * check. Its own piece so the one-time intro modal can set them over a
+ * different ending than the upgrade pitch's plan notice.
+ */
+export function AssistantInboxPerks({
+  assistantName,
+  rootDomain,
+}: AssistantInboxPerksProps) {
+  const { t } = useTranslation("assistant-inbox");
+  const perks = [
+    t("assistantInboxUpgradeState.perkAddress", { rootDomain }),
+    assistantName
+      ? t("assistantInboxUpgradeState.perkReads", { name: assistantName })
+      : t("assistantInboxUpgradeState.perkReadsNoName"),
+    t("assistantInboxUpgradeState.perkHistory"),
+  ];
+  return (
+    <ul className="flex w-full flex-col gap-1">
+      {perks.map((perk) => (
+        <li
+          key={perk}
+          className="flex items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--content-default)_6%,transparent)] py-[5px] pl-1 pr-3 text-label-medium-default text-[var(--content-secondary)]"
+        >
+          <Check
+            className="size-4 shrink-0 text-[var(--system-positive-strong)]"
+            strokeWidth={2.5}
+            aria-hidden="true"
+          />
+          {perk}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export interface AssistantInboxUpgradeBodyProps {
   /** Whose inbox this would be; the pitch wears their accent. */
@@ -39,17 +78,12 @@ export interface AssistantInboxUpgradeBodyProps {
 
 /**
  * The pitch for a plan with managed email, below whatever title introduces
- * it: the address the upgrade would create drawn as the assistant, three
- * perks, and the way to the plan. Title-less on purpose, so the inbox's
- * upgrade card can set it under its serif heading and the Channels page can
- * set it under the Email section's own header, and the two still say the
- * same thing the same way.
- *
- * The perks are a plain list on the surface they are given: the card and
- * the Channels section are containers already, and a tinted panel inside
- * either is one too many. The assistant's accent shows on the checks
- * instead, in place of a system green. Without a character avatar they fall
- * back to the neutral ink.
+ * it, as the design draws it: three perks as pill rows with a green check,
+ * then a notice that says the plan has no email, with the way to the plans
+ * and the upgrade. Title-less on purpose, so the inbox's upgrade page can
+ * set it under its serif heading and the Channels page can set it under
+ * the Email section's own header, and the two still say the same thing the
+ * same way.
  */
 export function AssistantInboxUpgradeBody({
   assistantId,
@@ -63,89 +97,54 @@ export function AssistantInboxUpgradeBody({
   align = "center",
 }: AssistantInboxUpgradeBodyProps) {
   const { t } = useTranslation("assistant-inbox");
-  const { accentHex } = useAssistantAvatar(assistantId);
   const centred = align === "center";
-
-  const checkStyle: CSSProperties = accentHex
-    ? { color: accentHex }
-    : { color: "var(--content-secondary)" };
-  const checkDiscStyle: CSSProperties = accentHex
-    ? { backgroundColor: `color-mix(in oklab, ${accentHex} 22%, transparent)` }
-    : { backgroundColor: "var(--surface-active)" };
-
-  const perks = [
-    t("assistantInboxUpgradeState.perkAddress", { rootDomain }),
-    assistantName
-      ? t("assistantInboxUpgradeState.perkReads", { name: assistantName })
-      : t("assistantInboxUpgradeState.perkReadsNoName"),
-    t("assistantInboxUpgradeState.perkHistory"),
-  ];
 
   return (
     <div
+      data-assistant-id={assistantId}
       className={cn(
-        "flex flex-col gap-6",
+        "flex w-full max-w-[360px] flex-col gap-6",
         centred ? "items-center" : "items-start",
       )}
     >
-      {/* The address the upgrade would create, drawn as the assistant so
-          the pitch shows the thing itself rather than describing it. */}
-      {handle ? (
-        <div
+      <AssistantInboxPerks
+        assistantName={assistantName}
+        rootDomain={rootDomain}
+      />
+      {handle && onEditHandle ? (
+        <button
+          type="button"
+          onClick={onEditHandle}
           className={cn(
-            "flex max-w-full flex-col gap-1.5",
-            centred ? "items-center" : "items-start",
+            "-mt-3 cursor-pointer rounded px-1 text-body-small-lighter text-[var(--content-tertiary)] underline decoration-[var(--border-element)] underline-offset-2",
+            "transition-colors duration-150 hover:text-[var(--content-default)]",
+            "outline-none keyboard-focus:ring-2 keyboard-focus:ring-[var(--ring)]",
           )}
         >
-          <AddressPill
-            assistantId={assistantId}
-            address={`${t("emailAddressFields.prefixPlaceholder")}@${handle}.${rootDomain}`}
-          />
-          {onEditHandle ? (
-            <button
-              type="button"
-              onClick={onEditHandle}
-              className={cn(
-                "cursor-pointer rounded px-1 text-body-small-lighter text-[var(--content-tertiary)] underline decoration-[var(--border-element)] underline-offset-2",
-                "transition-colors duration-150 hover:text-[var(--content-default)]",
-                "outline-none keyboard-focus:ring-2 keyboard-focus:ring-[var(--ring)]",
-              )}
-            >
-              {t("assistantInboxUpgradeState.changeHandle")}
-            </button>
-          ) : null}
-        </div>
+          {t("assistantInboxUpgradeState.changeHandle", {
+            address: `${t("emailAddressFields.prefixPlaceholder")}@${handle}.${rootDomain}`,
+          })}
+        </button>
       ) : null}
-      <ul className="flex max-w-full flex-col gap-3">
-        {perks.map((perk) => (
-          <li
-            key={perk}
-            className="flex items-center gap-3 text-body-medium-lighter text-[var(--content-default)]"
-          >
-            <span
-              className="flex size-6 shrink-0 items-center justify-center rounded-full"
-              style={checkDiscStyle}
-            >
-              <Check
-                className="size-3.5"
-                strokeWidth={2.5}
-                style={checkStyle}
-                aria-hidden="true"
-              />
-            </span>
-            {perk}
-          </li>
-        ))}
-      </ul>
-      <div className="flex flex-wrap items-center gap-2">
-        {onSeePlans ? (
-          <Button variant="outlined" onClick={onSeePlans}>
-            {t("assistantInboxUpgradeState.seePlans")}
+      <div
+        className={cn(
+          "flex w-full flex-col gap-4 rounded-lg bg-[color-mix(in_srgb,var(--content-default)_4%,transparent)] p-3",
+          centred ? "items-center text-center" : "items-start",
+        )}
+      >
+        <p className="text-label-medium-default leading-[15px] text-[var(--content-secondary)]">
+          {t("assistantInboxUpgradeState.planNotice")}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {onSeePlans ? (
+            <Button variant="outlined" onClick={onSeePlans}>
+              {t("assistantInboxUpgradeState.seePlans")}
+            </Button>
+          ) : null}
+          <Button variant="primary" leftIcon={<Zap />} onClick={onUpgrade}>
+            {t("assistantInboxUpgradeState.upgradeButton")}
           </Button>
-        ) : null}
-        <Button variant="primary" leftIcon={<Sparkles />} onClick={onUpgrade}>
-          {t("assistantInboxUpgradeState.upgradeButton")}
-        </Button>
+        </div>
       </div>
       {footnote}
     </div>
