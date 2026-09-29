@@ -1,5 +1,4 @@
 import {
-  AudioLines,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -12,7 +11,6 @@ import {
   MicOff,
   Pencil,
   ScreenShare,
-  ScrollText,
   Slash,
   Square,
   Volume2,
@@ -20,15 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useReducedMotion } from "motion/react";
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   CSSProperties,
   MouseEvent as ReactMouseEvent,
@@ -56,7 +46,6 @@ import type {
   VoiceActivityWork,
 } from "@vellumai/ipc-contract";
 
-import { AnimatedAvatar } from "@/components/avatar/animated-avatar";
 import {
   CompanionCallWorkSettled,
   CompanionCallWorkShelf,
@@ -65,11 +54,24 @@ import {
   runningCallWork,
   waitingCallWork,
 } from "@/components/companion-call-work";
-import { unplacedOfferLabelKey } from "@/components/companion-dictation-offer";
-import { CompanionPeek } from "@/components/companion-peek";
 import { companionLayoutFor } from "@/components/companion-layout";
+import { Avatar } from "@/components/companion-surface-avatar";
+import {
+  Caption,
+  CompanionCaptionSideProvider,
+  PillButton,
+  useCompanionCaptionStance,
+} from "@/components/companion-surface-primitives";
+import type {
+  CompanionCaptionSide,
+  CompanionSurfaceSpotlight,
+} from "@/components/companion-surface-primitives";
+import {
+  DictatingBody,
+  OfferBody,
+  SummaryBody,
+} from "@/components/companion-surface-status-bodies";
 import { useTranslation } from "@/i18n";
-import { BUNDLED_COMPONENTS } from "@/utils/avatar-bundled-components";
 
 /**
  * The macOS companion surface (LUM-3086): the assistant's avatar floating from
@@ -243,27 +245,6 @@ export type CompanionSurfaceCardGrowth = "up" | "down";
  * host has to have built.
  */
 export type CompanionSurfaceDock = "bottom" | "top" | "left" | "right";
-
-/**
- * Where a control's caption stands: over the control, or beside it.
- *
- * Above is the shape the row is designed around, the way the Dock names an
- * icon under the pointer. A column has no room above a control that is not
- * its neighbour's, so its captions stand off to the side, toward the middle
- * of the screen, where there is a whole display to say the word in.
- */
-type CaptionSide = "above" | "left" | "right";
-
-/**
- * Which way the captions go, for every control in the call's bar at once.
- *
- * A context rather than a prop on each control, because it is a fact about
- * the bar: it is a row or a column, and every caption on it stands the same
- * way. Threading it through six controls to reach the one component that
- * draws a caption would be six places for one of them to be missed. Provided
- * around the call's body alone, since no other pill ever stands up.
- */
-const CaptionSideContext = createContext<CaptionSide>("above");
 
 /** Fallback accent, used until the assistant's own avatar colour is known. */
 const DEFAULT_ACCENT = "#5eead4";
@@ -537,7 +518,7 @@ export interface CompanionCallShortcuts {
  * `talk` is the creature itself, which is the call button and carries its name
  * above it; the rest are controls on the call's bar.
  */
-export type CompanionSurfaceSpotlight = "talk" | "share" | "draw" | "mute";
+export type { CompanionSurfaceSpotlight } from "@/components/companion-surface-primitives";
 
 export interface CompanionSurfaceProps {
   phase: CompanionSurfacePhase;
@@ -1268,7 +1249,7 @@ export function CompanionSurface({
    * Where the controls' captions go: over them on a row, and beside them on a
    * column, on the side facing the middle of the screen.
    */
-  const captionSide: CaptionSide = !vertical
+  const captionSide: CompanionCaptionSide = !vertical
     ? "above"
     : dock === "left"
       ? "right"
@@ -1610,7 +1591,7 @@ export function CompanionSurface({
             }}
           >
             {phase === "call" ? (
-              <CaptionSideContext.Provider value={captionSide}>
+              <CompanionCaptionSideProvider side={captionSide}>
                 <CallBody
                   call={call}
                   assistantName={assistantName}
@@ -1664,16 +1645,17 @@ export function CompanionSurface({
                     setWorkShelfOpen((open) => !open);
                   }}
                 />
-              </CaptionSideContext.Provider>
+              </CompanionCaptionSideProvider>
             ) : phase === "dictating" && dictating !== undefined ? (
               <DictatingBody
                 dictating={dictating}
                 dictationText={dictationText}
+                transcriptWidth={TRANSCRIPT_WIDTH}
               />
             ) : phase === "summary" && watchRetro !== undefined ? (
               <SummaryBody retro={watchRetro} onWatchRetro={onWatchRetro} />
             ) : phase === "offer" && dictationOffer !== undefined ? (
-              <OfferBody offer={dictationOffer} />
+              <OfferBody offer={dictationOffer} offerWidth={OFFER_WIDTH} />
             ) : (
               <IdleBody watching={watching} onWatch={onWatch} />
             )}
@@ -1808,6 +1790,8 @@ export function CompanionSurface({
             : t("companionSurface.talk")
         }
         accentHex={accentHex}
+        avatarImageSize={AVATAR_IMAGE}
+        peekCapsule={PEEK_CAPSULE}
         avatarSrc={avatarSrc}
         character={character}
         attentive={hovered}
@@ -1878,32 +1862,6 @@ export function CompanionSurface({
 }
 
 /**
- * The name's fill, named once and shared by the rectangle and its beak.
- *
- * A shared constant rather than the same literal typed twice. Translucent
- * rather than the flat fill this had before `backdrop-filter` was added:
- * the blur only has something to show once the fill lets it through. The
- * beak sits flush against the rectangle's bottom edge rather than
- * overlapping it (`top-full`, not a negative offset), so the two panes of
- * blurred backdrop meet edge to edge instead of compositing on top of each
- * other, which is what kept the flat-fill version seam-free and keeps this
- * one seam-free too.
- */
-const NAME_CAPTION_FILL = "rgba(28, 28, 30, 0.55)";
-
-/**
- * The blur and saturation boost shared by the rectangle and its beak, so the
- * one pane of "glass" reads as one material rather than two.
- *
- * An approximation of macOS's own vibrancy material, not the real thing: a
- * genuine `NSGlassEffectView` is a native layer, and this is HTML painted
- * inside the window's own transparent content, so the closest available
- * tool is Chromium's `backdrop-filter` sampling the desktop showing through
- * that transparency.
- */
-const NAME_CAPTION_GLASS = "backdrop-blur-md backdrop-saturate-150";
-
-/**
  * Follow the centre of the first element matching `selector` inside `box`, in
  * the units that box's contents are authored in, for as long as it might still
  * be moving.
@@ -1962,364 +1920,6 @@ const trackInBox = (
  * points at, and a seam is the same few pixels at every size of creature.
  */
 const NAME_CAPTION_LIFT = 4;
-
-/**
- * A name for a thing under the pointer, the way the Dock names an icon: a
- * small rectangle above it with a beak pointing down at it. The creature's
- * name for a press, and each pill control's name for the pointer on it.
- *
- * Text only, no icon: what sits beneath it is the icon already, and the
- * Dock's own tooltip carries nothing but the name. A small rectangle rather
- * than the pill's stadium shape, so the two never share a silhouette.
- *
- * `shortcut` is the key that does the same thing, after the name and dimmer
- * than it, the way a menu writes its accelerator: the name is what the control
- * is, the key is a second way to it. Glyphs rather than copy, so it is not
- * translated.
- *
- * Placed by the caller: `className` carries whether it is shown and any lift
- * off the thing it names, `style` any offsets the layout works out. Absolute
- * with no offsets of its own, so a caller that sets none gets the static
- * position, which is what the pill's controls rely on.
- *
- * `aria-hidden` throughout: whatever it names carries the same word as its
- * accessible name, and a reader told it twice is told about two things.
- */
-function Caption({
-  className,
-  style,
-  label,
-  shortcut,
-  beak = "down",
-  ...data
-}: {
-  className: string;
-  style?: CSSProperties;
-  label: string;
-  shortcut?: string;
-  /**
-   * Which way the beak points, which is toward whatever the caption names:
-   * down from a caption standing over it, sideways from one standing beside.
-   */
-  beak?: "down" | "left" | "right";
-} & Partial<Record<`data-${string}`, string>>) {
-  return (
-    <span
-      className={`pointer-events-none absolute rounded-md px-2 py-1 text-[11px] leading-4 font-medium whitespace-nowrap text-white/90 shadow-md shadow-black/30 transition-opacity duration-200 ${NAME_CAPTION_GLASS} ${className}`}
-      style={{ ...style, backgroundColor: NAME_CAPTION_FILL }}
-      aria-hidden
-      {...data}
-    >
-      {label}
-      {shortcut === undefined ? null : (
-        <span className="ml-1.5 font-normal text-white/60" data-shortcut>
-          {shortcut}
-        </span>
-      )}
-      {/* Flush with the rectangle's own bottom edge (`top-full`) rather than
-          nudged down to meet it, so the two blurred panes meet at a seam
-          rather than compositing on top of each other. Centred under the
-          text rather than under the whole padded box for the same reason a
-          Dock label's beak centres on the name: it is pointing at the icon
-          below, and the icon is what the horizontal centre of this box was
-          already placed over.
-
-          Clipped to a triangle rather than drawn with the border trick:
-          `backdrop-filter` blurs an element's whole border box, transparent
-          border colour or not, so the border trick left a hazy rectangular
-          smudge around the visible point. `clip-path` removes those corners
-          from the element entirely, so there is nothing left there for the
-          blur to show through. */}
-      <span
-        className={`absolute ${
-          beak === "down"
-            ? "top-full left-1/2 h-1.5 w-2.5 -translate-x-1/2"
-            : beak === "left"
-              ? "top-1/2 right-full h-2.5 w-1.5 -translate-y-1/2"
-              : "top-1/2 left-full h-2.5 w-1.5 -translate-y-1/2"
-        } ${NAME_CAPTION_GLASS}`}
-        style={{
-          backgroundColor: NAME_CAPTION_FILL,
-          clipPath:
-            beak === "down"
-              ? "polygon(0 0, 100% 0, 50% 100%)"
-              : beak === "left"
-                ? "polygon(100% 0, 100% 100%, 0 50%)"
-                : "polygon(0 0, 0 100%, 100% 50%)",
-        }}
-        aria-hidden
-      />
-    </span>
-  );
-}
-
-/**
- * The avatar, which is the point the whole surface is arranged around.
- *
- * Positioned on the point the host put the window around rather than laid out
- * in the pill, which is what lets the pill change width and shape underneath
- * without the creature moving a pixel.
- *
- * No light behind the creature. It once sat on a blurred disc of its own
- * accent, and the halo went because it made the creature read as a lit control
- * rather than as something standing on the desktop.
- *
- * **The bob is a wrapper, not a class on the artwork.** `AnimatedAvatar` owns
- * `transform` on its own `<svg>` for the breathe and the morph, and a second
- * animation on that node would silently replace one of them. Everything that
- * belongs to the creature rides inside the wrapper. The edge sits outside it: it is
- * drawn on the shape rather than on the artwork, so a ring saying something is
- * running holds still while the creature breathes under it.
- *
- * **The collapse is a third node, for the same reason.** Fading and shrinking
- * the creature away at rest is a `transform`, and putting it on the bob would
- * silently drop the bob. So the collapse gets a wrapper of its own around the
- * bob, and the two animations stay on separate nodes.
- */
-function Avatar({
-  accentHex,
-  avatarSrc,
-  character,
-  busy = false,
-  attentive = false,
-  collapsed = false,
-  restingScale = 1,
-  label,
-  style,
-  elementRef,
-  onPointerDown,
-  onContextMenu,
-  onClick,
-}: {
-  accentHex: string;
-  /** The press's accessible name. See `onAvatarClick` in `CompanionSurface`. */
-  label: string;
-  avatarSrc?: string;
-  character?: CompanionCharacter;
-  busy?: boolean;
-  attentive?: boolean;
-  /**
-   * Whether the surface is at rest, where the creature is tucked behind the
-   * marker and peeks out of it. See {@link RESTING_PILL}.
-   */
-  collapsed?: boolean;
-  /**
-   * What the peek scales by to undo the scale this node already carries, so it
-   * rides a marker drawn at one size whatever the creature is sized to.
-   * Applies to the peek alone: the standing creature is its own box and grows
-   * with it, which is the whole point of the setting.
-   */
-  restingScale?: number;
-  style?: CSSProperties;
-  elementRef?: Ref<HTMLDivElement>;
-  onPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onContextMenu?: (event: ReactMouseEvent<HTMLDivElement>) => void;
-  onClick?: () => void;
-}) {
-  // Belt and braces alongside the `prefers-reduced-motion` block beside the
-  // keyframes: the class is what a stylesheet-only reader sees, this is what a
-  // reader of the component sees.
-  const reduce = useReducedMotion();
-
-  return (
-    // A div rather than a button even when it is pressable: it is the drag
-    // handle for the whole surface, and the press that starts a drag must not
-    // read as activating a control. `onClick` fires only for presses the caller
-    // decided were not drags.
-    <div
-      role="button"
-      aria-label={label}
-      className="absolute grid size-11 cursor-grab place-items-center active:cursor-grabbing"
-      style={style}
-      ref={elementRef}
-      onPointerDown={onPointerDown}
-      onContextMenu={onContextMenu}
-      onClick={onClick}
-    >
-      {/* Once in a while the creature looks out of the marker: it rises from
-        behind the top or bottom edge far enough to show its eyes, holds a
-        moment, and ducks back; see `CompanionPeek`. Only for a composed
-        creature: a custom image has nobody to peek.
-
-        The pill it rises over is hollow, which costs the peek nothing: the
-        rise is drawn through a clip that shows only the slice above the rim,
-        so what hides the rest of the creature is the clip and never a fill.
-
-        Rides the marker's own scale and fade, so it is drawn at the marker's
-        one size on every setting and goes with it when the creature comes out
-        for real. */}
-      {character !== undefined ? (
-        <CompanionPeek
-          character={character}
-          capsule={PEEK_CAPSULE}
-          // A working creature holds a focused pose, and stops blinking for the
-          // same reason. The creature is carrying the state; nothing else
-          // should.
-          enabled={collapsed && !busy}
-          className="absolute top-1/2 left-1/2 transition-opacity duration-200"
-          style={{
-            transform: `translate(-50%, -50%) scale(${restingScale})`,
-            opacity: collapsed ? 1 : 0,
-          }}
-        />
-      ) : null}
-      {/* The creature standing up out of the marker. A wrapper of its own
-        because the scale is a `transform` and the bob below already owns
-        one. */}
-      <div
-        className="transition-[opacity,transform] duration-300"
-        style={{
-          opacity: collapsed ? 0 : 1,
-          transform: collapsed ? "scale(0.35)" : "scale(1)",
-          transitionTimingFunction: "cubic-bezier(.2,.8,.2,1)",
-          // The scale is dropped for a reader who asked for stillness and the
-          // fade is kept: a cross-fade is not motion across the screen, and it
-          // is gentler than the creature snapping in and out.
-          transitionProperty: reduce ? "opacity" : undefined,
-        }}
-      >
-        <div
-          className="companion-avatar-bob relative grid place-items-center"
-          style={{ animation: reduce ? "none" : undefined }}
-        >
-          {character !== undefined ? (
-            // The live creature, composed here rather than shipped as pixels. It
-            // blinks, twitches and breathes on its own, which is the whole reason
-            // the traits cross the bridge instead of a still.
-            <div className="relative drop-shadow-[0_1px_3px_rgba(0,0,0,0.55)]">
-              <AnimatedAvatar
-                components={BUNDLED_COMPONENTS}
-                traits={character}
-                size={AVATAR_IMAGE}
-                isAssistantBusy={busy}
-                attentive={attentive}
-              />
-            </div>
-          ) : avatarSrc === undefined ? (
-            // Until the avatar resolves, a disc in its colour. Same size, so
-            // nothing about the geometry moves when the image lands.
-            <span
-              className="relative size-7 rounded-full drop-shadow-[0_1px_3px_rgba(0,0,0,0.55)]"
-              style={{ background: accentHex }}
-              aria-hidden
-            />
-          ) : (
-            // A custom uploaded image, which has no traits to compose and so no
-            // eyes to animate.
-            //
-            // Undraggable, because the avatar is the surface's drag handle. An
-            // image is natively draggable, and the platform's own HTML5 image drag
-            // takes the pointer and ends the `mousemove` stream the surface's drag
-            // runs on, so pressing a custom avatar would move nothing where
-            // pressing a composed creature moves the window. WebKit honours the CSS
-            // on paths where it ignores the attribute, so both are needed.
-            <img
-              src={avatarSrc}
-              alt=""
-              draggable={false}
-              className="relative size-7 rounded-full object-contain drop-shadow-[0_1px_3px_rgba(0,0,0,0.55)] [-webkit-user-drag:none]"
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Expanded, mid-dictation: what the microphone is doing, and nothing else.
- *
- * No controls. Every other open state offers a way to act on itself, and this
- * one is already under the user's hand: the gesture holding the pill open is
- * the control, and letting go is how it ends. A stop button beside a key they
- * are physically holding would be a second answer to a question they have
- * already answered.
- *
- * The word is the same vocabulary a call uses for the same two facts, so a
- * microphone open for dictation and one open for a conversation do not read as
- * different machines.
- */
-function DictatingBody({
-  dictating,
-  dictationText,
-}: {
-  dictating: CompanionDictating;
-  dictationText: string;
-}) {
-  const { t } = useTranslation();
-  const words = dictationText.trim();
-  return (
-    <div className="flex h-7 shrink-0 items-center gap-2 px-1">
-      <AudioLines className="size-4 shrink-0" aria-hidden />
-      {words ? (
-        /* The end of the sentence, not the start of it.
- 
-           A line that filled from the start would freeze on the opening words
-           and leave the speaker watching the part they are least unsure of. So
-           the words sit at the end of their box, and a run longer than the
-           box overflows at the start, where the clipping is. The end is the
-           words' own: the box takes its direction from them, so a transcript
-           in a right-to-left language ends on the left and is clipped on the
-           right, and its last words stay in view the same way.
- 
-           A stated width rather than a measured one: every other state on
-           this surface is as wide as its content, and a sentence has no width
-           to be as wide as. The box is the same size with three words in it
-           as with thirty, and the same size as the status word's box before
-           there were any, so the pill takes its dictating width once and
-           holds it while the words change underneath. A box that grew with
-           its words would be re-measured on every partial, and the pill's
-           width transition would run for as long as the speaker talked.
- 
-           Not a live region. A recogniser revises its guess several times a
-           second, and a screen reader that announced each revision would be
-           reading the whole line over and over behind a user who is already
-           saying it. */
-        <span
-          dir="auto"
-          className="flex justify-end overflow-hidden text-[12px] whitespace-nowrap text-white/85"
-          style={{ width: TRANSCRIPT_WIDTH }}
-        >
-          <span className="shrink-0">{words}</span>
-        </span>
-      ) : (
-        <span
-          className="truncate text-[12px] text-white/85"
-          style={{ width: TRANSCRIPT_WIDTH }}
-        >
-          {dictating === "listening"
-            ? t("companionSurface.dictating")
-            : t("companionSurface.dictatingTranscribing")}
-        </span>
-      )}
-    </div>
-  );
-}
-
-/**
- * The pill's line while a dictation's words are on offer beside it.
- *
- * Only why they are being offered: the other app that pasted its own version,
- * that nothing in front would take them, or that the paste failed. The words and the answers are on
- * the card ({@link CompanionSurfaceProps.offer}), since the pill is one line
- * tall and the words have to be read whole.
- */
-function OfferBody({ offer }: { offer: CompanionDictationOffer }) {
-  const { t } = useTranslation();
-  return (
-    <div className="flex h-7 shrink-0 items-center gap-2 px-1">
-      <AudioLines className="size-4 shrink-0" aria-hidden />
-      <span
-        className="truncate text-[12px] text-white/85"
-        style={{ width: OFFER_WIDTH }}
-      >
-        {offer.reason === "claimed"
-          ? t("companionSurface.offerHeard", { app: offer.app })
-          : t(unplacedOfferLabelKey(offer.reason))}
-      </span>
-    </div>
-  );
-}
 
 /**
  * Expanded with no call and no words: the row of a session reading the screen.
@@ -2399,65 +1999,6 @@ function TeachButton({
       // which is the toggle it always was.
       onClick={watching ? onWatch : (onTeach ?? onWatch)}
     />
-  );
-}
-
-/**
- * Expanded, after a session: what became of what the user narrated.
- *
- * **Two states and no third.** While the turn runs there is nothing to press,
- * so the row is a word and the ring beside it; once there is a report the row
- * is the question and its two answers. There is no state for a session that
- * produced nothing, because the surface stops drawing this at all when the
- * runtime says so, and an empty result reported as one would be a notice about
- * an absence.
- *
- * **The wait is stated, not implied.** The ring alone would be the same light
- * the assistant burns for every other turn, and the one thing this has to say
- * is which turn it is: the session the user just ended. One word, because the
- * pill is read from the corner of an eye over another app's work.
- *
- * **Both answers are drawn.** The question is asked on a surface that floats
- * over whatever the user does next, so the way out of it has to be as reachable
- * as the way in; a prompt whose only dismissal is going elsewhere is one that
- * follows them around. The summary stays in the assistant's own conversation
- * list either way, which is what makes "not now" a deferral rather than a
- * discard.
- */
-function SummaryBody({
-  retro,
-  onWatchRetro,
-}: {
-  retro: CompanionWatchRetro;
-  onWatchRetro?: (open: boolean) => void;
-}) {
-  const { t } = useTranslation();
-  if (retro === "pending") {
-    return (
-      <span className="ml-1 shrink-0 text-[12px] text-white/85">
-        {t("companionSurface.summarizing")}
-      </span>
-    );
-  }
-  return (
-    <>
-      <PillButton
-        icon={<ScrollText className="size-4" />}
-        label={t("companionSurface.showSummary")}
-        showLabel
-        onClick={() => {
-          onWatchRetro?.(true);
-        }}
-      />
-      <PillButton
-        icon={<X className="size-4" />}
-        label={t("companionSurface.notNow")}
-        showLabel
-        onClick={() => {
-          onWatchRetro?.(false);
-        }}
-      />
-    </>
   );
 }
 
@@ -3232,49 +2773,6 @@ function StopWatchingButton({ onWatch }: { onWatch?: () => void }) {
 }
 
 /**
- * Where a control's caption sits: standing on the pill's top edge, with only
- * its beak crossing into the pill to point at the control below.
- *
- * The caption starts out centred on the control (see {@link PillButton}), so
- * the lift is its own half height, which puts its bottom edge on the control's
- * centre, plus half the pill's `h-11` row to carry that edge up to the row's
- * top. 22px is the one number the caption and the row share, and it holds at
- * every avatar size: the whole surface is drawn scaled, so both are in the
- * same units.
- *
- * Not further up. Growing downward the canvas keeps only its own pad above the
- * pill, which a caption standing here clears by around 7px, and one lifted
- * clear of the pill's edge would be cut off by the top of the window.
- */
-const CONTROL_CAPTION_LIFT = "-translate-y-[calc(50%+22px)]";
-
-/**
- * Where a control's caption sits on a column: standing off the column's edge,
- * with only its beak crossing into it to point at the control beside it.
- *
- * The same 22px, read across: the column is the row stood up, so its half
- * width is the row's half height, and the caption's own half width carries
- * its near edge to the column's edge the way its half height carries its
- * bottom edge to the row's top. Toward the middle of the screen, since a
- * column stands against a side of the display and the other way is off it.
- */
-const CONTROL_CAPTION_BESIDE: Record<Exclude<CaptionSide, "above">, string> = {
-  right: "translate-x-[calc(50%+22px)]",
-  left: "-translate-x-[calc(50%+22px)]",
-};
-
-/** The way a caption stands off its control, by which side it stands on. */
-const captionStance = (
-  side: CaptionSide,
-): { className: string; beak: "down" | "left" | "right" } =>
-  side === "above"
-    ? { className: CONTROL_CAPTION_LIFT, beak: "down" }
-    : {
-        className: CONTROL_CAPTION_BESIDE[side],
-        beak: side === "right" ? "left" : "right",
-      };
-
-/**
  * The call's work on its row: a turning arc around how many pieces are
  * running, which settles to a mark for a beat when the last one finishes. A
  * press opens the list of them joined to the bar. Beside the line, since it is
@@ -3295,7 +2793,7 @@ function WorkChip({
   onToggle?: () => void;
 }) {
   const { t } = useTranslation();
-  const stance = captionStance(useContext(CaptionSideContext));
+  const stance = useCompanionCaptionStance();
   const running = runningCallWork(work);
   const waiting = waitingCallWork(work);
   // What the count counts: the work moving, or failing that the work held on
@@ -3358,43 +2856,6 @@ function WorkChip({
   );
 }
 
-/**
- * A control in the pill.
- *
- * `label` is always the accessible name. It is drawn in the row only when the
- * pill has room for words (`showLabel`); everywhere else the control is an
- * icon with its name in a {@link Caption} above it, the way the Dock names an
- * icon under the pointer, so the call's controls are icon-only without being
- * unlabelled and the pill is one width whatever the pointer is doing.
- *
- * **The caption is `:hover`, deliberately, and this is the one place on the
- * surface where that is not a matter of taste.** The host's window is
- * click-through, so the page derives its own hover by hit-testing coordinates
- * against the pill on every forwarded mouse-move rather than trusting
- * `mouseenter` (`companion-surface-page.tsx`). A per-control reveal driven off
- * React's mouse events would be betting on the events that page does not
- * receive. The held-down background on this very button runs on `:hover`, so
- * a caption on the same mechanism works exactly where the rest of the control
- * does.
- *
- * **The caption escapes the row's clipping by having a different containing
- * block.** The row hides its overflow so nothing is drawn past the pill while
- * the width catches up with the content, and a caption standing above the row
- * is exactly that overflow. Overflow clips only what the clipping box
- * contains, so the caption is positioned against the row's parent instead:
- * this button is not positioned and neither is the row, and with no offsets
- * of its own the caption takes its static position, which for the child of a
- * flex container is where it would sit as the sole item. `justify-center` and
- * `items-center` put that on the control's centre, and from there the caption
- * lifts by {@link CONTROL_CAPTION_LIFT}. Nothing measures anything.
- *
- * `pressed` is the control's own on or off, which is a state: a button
- * reporting a state it does not have is one assistive technology describes
- * wrongly, so it is undefined for everything that does not toggle, which is
- * most of this surface. Where it is set it draws the held-down look as well,
- * so the state a looking user reads off the background and the state a reader
- * is told cannot come apart.
- */
 const CHEVRON_FOR_SIDE: Record<DrawToolsPlacement, typeof ChevronUp> = {
   above: ChevronUp,
   below: ChevronDown,
@@ -3434,96 +2895,5 @@ function PickerChevron({
         onPicker(picker);
       }}
     />
-  );
-}
-
-function PillButton({
-  icon,
-  label,
-  shortcut,
-  tone,
-  showLabel = false,
-  pressed,
-  spotlit = false,
-  dimmed = false,
-  control,
-  narrow = false,
-  className = "",
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  /** The key that makes the same press, written into the caption after the name. */
-  shortcut?: string;
-  tone?: "positive" | "negative";
-  showLabel?: boolean;
-  pressed?: boolean;
-  /**
-   * Drawn as the control in use, for the beat of the introduction that is
-   * about it: the same held-down look a press gives it, with no pointer on it.
-   * See {@link CompanionSurfaceSpotlight}.
-   */
-  spotlit?: boolean;
-  /**
-   * Stood down, because the introduction is describing a different control.
-   * Every other control on the row dims rather than staying at full strength,
-   * so the one being described is the only live thing on the bar.
-   */
-  dimmed?: boolean;
-  /**
-   * Which control this is, in the introduction's vocabulary, written onto the
-   * element as `data-control`. The introduction's card finds it there to aim
-   * its beak at, which is a measurement rather than a layout the card could
-   * derive: this row's controls come and go with the session's state.
-   */
-  control?: CompanionSurfaceSpotlight;
-  /** Drawn to its icon's width, for a chevron riding beside another control. */
-  narrow?: boolean;
-  /** A name for the stylesheet, for a control something else is placed against. */
-  className?: string;
-  onClick?: () => void;
-}) {
-  const stance = captionStance(useContext(CaptionSideContext));
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={pressed}
-      data-control={control}
-      onClick={onClick}
-      // A press on a control is not the start of a drag. Without this the
-      // surface would move under a click meant to activate something on it.
-      onPointerDown={(event) => {
-        event.stopPropagation();
-      }}
-      className={`group flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-full text-[12px] transition-[background-color,opacity] duration-200 hover:bg-white/15 ${
-        narrow ? "-mx-1 px-0.5" : "px-2"
-      } ${className} ${
-        pressed === true || spotlit ? "bg-white/15" : ""
-      } ${dimmed ? "opacity-35" : ""} ${
-        tone === "negative"
-          ? "text-[#ff6b6b]"
-          : tone === "positive"
-            ? "text-[#5ee08a]"
-            : "text-white/85"
-      }`}
-    >
-      {icon}
-      {showLabel ? (
-        <span>{label}</span>
-      ) : (
-        // `data-label` is the caption's contract, and it is here because the
-        // behaviour itself is a stylesheet: a test running without Tailwind
-        // sees a span either way, so the attribute is the only honest way to
-        // hold that this word is hidden until the pointer arrives.
-        <Caption
-          label={label}
-          shortcut={shortcut}
-          className={`opacity-0 group-hover:opacity-100 ${stance.className}`}
-          beak={stance.beak}
-          data-label="hover"
-        />
-      )}
-    </button>
   );
 }
