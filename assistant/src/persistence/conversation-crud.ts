@@ -132,6 +132,7 @@ import {
   resolveMessagesAfterBound,
 } from "./message-cursor.js";
 import {
+  isChannelDeletedMetadata,
   isStandaloneAssistantMessage,
   mergeMessageMetadata,
   messageMetadataSchema,

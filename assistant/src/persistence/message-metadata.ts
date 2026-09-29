@@ -188,7 +188,7 @@ export const messageMetadataSchema = z
      * Transcript-suppression flag: the row is a machine signal (e.g. the
      * channel-setup wizard-close marker, the onboarding greeting kickoff),
      * persisted and LLM-visible but never rendered as a user message. Test
-     * with {@link isHiddenMessageMetadata} — hidden rows are filtered from
+     * with {@link isHiddenMessageMetadata}; hidden rows are filtered from
      * list-messages and queued snapshots, skip the user_message_echo, and
      * are excluded from search/memory indexing and other consumers that
      * treat message text as organic user input.
@@ -399,7 +399,7 @@ export function isStandaloneAssistantMessage(
  * or claim it over text that is still visible. The substring guard keeps the
  * envelope parse off rows that cannot carry it.
  */
-function isChannelDeletedMetadata(metadata: string): boolean {
+export function isChannelDeletedMetadata(metadata: string): boolean {
   return (
     metadata.includes("deletedAt") &&
     readProviderMetadata(metadata)?.deletedAt !== undefined
@@ -407,8 +407,8 @@ function isChannelDeletedMetadata(metadata: string): boolean {
 }
 
 /**
- * Parse a persisted message's metadata JSON against {@link messageMetadataSchema}
- * — the single source of truth for its shape — returning the validated fields,
+ * Parse a persisted message's metadata JSON against {@link messageMetadataSchema},
+ * the single source of truth for its shape, returning the validated fields,
  * or `undefined` when the column is absent, not valid JSON, or fails validation.
  * The single place the raw JSON.parse + safeParse dance lives, so callers read
  * typed fields (e.g. `provenanceTrustClass`, `automated`, `subagentNotification`)
