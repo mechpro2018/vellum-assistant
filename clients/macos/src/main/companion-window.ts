@@ -21,6 +21,7 @@ import {
   companionPickerSchema,
   companionPopoverAnswerSchema,
   companionPopoverHasRow,
+  COMPANION_VOICE_START_CONFIRMATION,
   watchCaptureTargetSchema,
   voiceActivityContentSchema,
   voiceActivityControlSchema,
@@ -53,6 +54,7 @@ import {
   type CoachmarkUnresolved,
   namesATarget,
   type PlacedCoachmark,
+  type ShareTargetSnapshot,
   type CompanionAnnotationTool,
   type CompanionCardGrowth,
   type CompanionCoachmark,
@@ -109,6 +111,7 @@ import {
   captureTargetFrame,
   locateOnTarget,
   listCaptureSources,
+  readTargetElements,
   resolveCapturePick,
   windowBoundsFor,
 } from "./companion-capture-sources";
@@ -129,6 +132,7 @@ import {
 import { unwatchFrameScroll, watchFrameScroll } from "./frame-scroll-watch";
 import { handle, on } from "./ipc";
 import log from "./logger";
+import { buildShareTargetSnapshot } from "./share-targets";
 import {
   getPermissionsService,
   onPermissionPresentation,
@@ -177,8 +181,8 @@ const isWatchEnabled = (): boolean =>
  * The companion surface (LUM-3086): the assistant's avatar floating from app
  * launch, expanding on hover into a pill carrying the ways to reach it, and
  * holding that expansion for as long as a call runs. It stays on screen
- * for the app's whole run unless the user hides it via the tray's "Show
- * Companion" item, a choice that persists across launches
+ * for the app's whole run or an active call. The tray's "Show Companion"
+ * item controls the idle surface, a choice that persists across launches
  * (`readCompanionHidden` in `window-state.ts`), and it steps off the screen
  * for as long as Vellum itself is the frontmost app with its window showing
  * (see `syncFrontmost`).
@@ -1769,6 +1773,15 @@ export const shownPopover = (
 const currentPopover = (): CompanionPopover | undefined =>
   shownPopover(context.popover, (id) => answered.has(id));
 
+/**
+ * Whether the voice key's start confirmation is published. It holds the
+ * companion on screen as a call does, since it is the only place asking. Read
+ * from the context rather than {@link currentPopover}, so an answered card
+ * keeps the surface up until the app withdraws it after acting on the answer.
+ */
+const askingVoiceStart = (): boolean =>
+  context.popover?.id === COMPANION_VOICE_START_CONFIRMATION;
+
 let popoverViewFor: {
   id: string;
   kind: CompanionPopover["kind"];
@@ -2777,6 +2790,23 @@ const surfaceBounds = async (
 };
 
 /**
+ * The controls `share` offers to be pointed at, or null when there is no tree
+ * to read or no surface to measure against.
+ */
+const readShareTargets = async (
+  share: WatchCaptureTarget,
+): Promise<ShareTargetSnapshot | null> => {
+  const [read, bounds] = await Promise.all([
+    readTargetElements(share),
+    surfaceBounds(share),
+  ]);
+  if (read === null || bounds === null) {
+    return null;
+  }
+  return buildShareTargetSnapshot(read.elements, bounds, read.candidateCount);
+};
+
+/**
  * Frame a rectangle of the desktop, or move the frame to it.
  *
  * For a display, its whole bounds rather than its work area, the way a shared
@@ -3185,6 +3215,7 @@ const ownCall = (owner: WebContents): void => {
       return;
     }
     syncCallSurface();
+    restoreIdleCompanionSurface();
     pushState();
   };
   const endOnNavigation = (
@@ -3421,7 +3452,11 @@ const syncFrontmost = (): void => {
   if (!win || win.isDestroyed()) {
     return;
   }
-  const away = surfaceAwayFor(appActive, mainWindowShowing(), introStaged);
+  const away = surfaceAwayFor(
+    appActive,
+    mainWindowShowing(),
+    introStaged || askingVoiceStart(),
+  );
   if (away === surfaceAway) {
     return;
   }
@@ -3931,6 +3966,18 @@ export const installCompanionWindow = (): void => {
   );
 
   /**
+   * The controls the shared surface offers to be pointed at, for the renderer
+   * holding the session to hand to it beside its frames. Measured against the
+   * same rectangle a mark is drawn on, so the fractions agree with the ones
+   * {@link showCompanionCoachmarks} reports.
+   */
+  handle(
+    "vellum:companion:shareTargets",
+    z.tuple([watchCaptureTargetSchema]),
+    ([target]) => readShareTargets(target),
+  );
+
+  /**
    * A frame of this surface reached the call, so the assistant has now been
    * shown it ({@link capturedTarget}).
    *
@@ -4202,11 +4249,19 @@ export const installCompanionWindow = (): void => {
     "vellum:companion:setContext",
     z.tuple([companionContextSchema]),
     ([next]) => {
+      const wasAsking = askingVoiceStart();
       context = next;
       releaseAnswered(context.popover);
       // What the user last did with a popover goes with it.
       if (currentPopover() === undefined) {
         popoverViewFor = null;
+      }
+      if (askingVoiceStart() !== wasAsking) {
+        if (wasAsking) {
+          restoreIdleCompanionSurface();
+        } else {
+          syncCompanionSurface();
+        }
       }
       syncWatchFrame();
       pushState();
@@ -4373,6 +4428,7 @@ export const installCompanionWindow = (): void => {
       // However this session was started, it is the thing the introduction's
       // last beat asks for. See {@link finishIntroOnSession}.
       finishIntroOnSession();
+      syncCompanionSurface();
       syncCallSurface();
       pushState();
     },
@@ -4401,6 +4457,7 @@ export const installCompanionWindow = (): void => {
       return;
     }
     syncCallSurface();
+    restoreIdleCompanionSurface();
     pushState();
   });
 
@@ -4486,6 +4543,7 @@ export const installCompanionWindow = (): void => {
     dialing = false;
     clearCall();
     syncCallSurface();
+    restoreIdleCompanionSurface();
     context = {
       ...context,
       watching: false,
@@ -4614,7 +4672,10 @@ export const openCompanionWindow = (): void => {
     return;
   }
 
-  const introDue = readCompanionIntroSeenVersion() < COMPANION_INTRO_VERSION;
+  const introDue =
+    call === null &&
+    !askingVoiceStart() &&
+    readCompanionIntroSeenVersion() < COMPANION_INTRO_VERSION;
 
   const win = createFloatingWindow({
     kind: COMPANION_KIND,
@@ -4719,15 +4780,8 @@ const closeCompanionWindow = (): void => {
 };
 
 /**
- * Show or hide the surface, persisting the choice so a hidden surface stays
- * hidden on the next launch.
- *
- * Hiding closes the window outright rather than making it invisible: the
- * canvas is a click-through mouse-event forwarder, and a hidden-but-alive
- * window would keep that machinery running for nothing. The live-voice
- * session state is unaffected either way, since main holds it (see `call`),
- * so a call running while the surface is hidden appears mid-call, clock
- * intact, when the surface is shown again.
+ * Persist the idle surface preference. Active calls keep their controls on
+ * screen until the session ends, then the idle preference applies again.
  */
 export const setCompanionSurfaceVisible = (visible: boolean): void => {
   writeCompanionHidden(!visible);
@@ -4745,7 +4799,7 @@ export const setCompanionSurfaceVisible = (visible: boolean): void => {
   // bringing it back later does not start explaining it again to someone who
   // has already decided what they think.
   finishIntro("hidden");
-  closeCompanionWindow();
+  syncCompanionSurface();
 };
 
 /**
@@ -4946,37 +5000,34 @@ export const resetCompanionSurfacePosition = (): void => {
 const hasAssistant = (): boolean => getAssistantName() !== null;
 
 /**
- * Whether the surface belongs on screen, given an assistant to draw and the
- * user's own choice from the tray.
- *
- * The assistant is a floor and the tray preference is a veto, so both have to
- * say yes. Exported for its tests, as `callOnUpdate` is: it is the rule that
- * decides whether the most conspicuous window this app has appears at all.
+ * Active call controls, and the voice key's start confirmation, stay visible
+ * regardless of the idle surface preference.
  */
 export const shouldShowCompanionSurface = (
   assistant: boolean,
   hidden: boolean,
-): boolean => assistant && !hidden;
+  activeCall = false,
+): boolean => activeCall || (assistant && !hidden);
 
-/**
- * Open or close the surface to match the two things that decide whether it
- * belongs on screen: whether there is an assistant to draw, and the user's own
- * choice from the tray.
- *
- * The single place that decision is made, called at launch and again whenever
- * either input changes. Two call sites reading the same pair of conditions is
- * how they come to disagree, and disagreeing here means either a floating
- * avatar nobody asked for or a missing one the user turned on.
- *
- * **Neither input ever writes the other.** Signing out has to leave the tray
- * preference exactly as the user left it, so that signing back in restores the
- * surface for someone who wanted it and leaves it hidden for someone who did
- * not.
- */
+/** Apply call visibility without changing the user's idle surface preference. */
 export const syncCompanionSurface = (): void => {
-  if (shouldShowCompanionSurface(hasAssistant(), readCompanionHidden())) {
+  if (
+    shouldShowCompanionSurface(
+      hasAssistant(),
+      readCompanionHidden(),
+      call !== null || askingVoiceStart(),
+    )
+  ) {
     openCompanionWindow();
+    syncFrontmost();
     return;
   }
   closeCompanionWindow();
+};
+
+const restoreIdleCompanionSurface = (): void => {
+  // Cleanup must not recreate windows being destroyed during app shutdown.
+  if (getFloatingWindow(COMPANION_KIND) !== null) {
+    syncCompanionSurface();
+  }
 };

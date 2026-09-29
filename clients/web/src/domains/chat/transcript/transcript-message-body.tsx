@@ -8,12 +8,15 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 
 import { BubbleAttachments } from "@/domains/chat/components/chat-attachments/bubble-attachments";
+import { MessageEmailReferences } from "@/domains/chat/components/chat-attachments/message-email-references";
+import { extractEmailReferences } from "@/domains/chat/email-reference";
 import { CameraFrameGrid } from "@/domains/chat/components/chat-attachments/camera-frame-grid";
 import { getMessageRenderKind } from "@/domains/chat/transcript/message-render-kind";
 import { resolveAttachmentFilename } from "@vellumai/service-contracts/attachment-naming";
@@ -225,6 +228,17 @@ export function TranscriptMessageBody({
       ? trailingGroup.text
       : null,
   );
+
+  // Whether this row has streamed while mounted. A response the reader watched
+  // arrive keeps the layout it streamed in for as long as it stays mounted, so
+  // nothing folds away while they read it; it collapses when it next mounts as
+  // history.
+  const [watchedLive, setWatchedLive] = useState(isStreaming);
+  useEffect(() => {
+    if (isStreaming) {
+      setWatchedLive(true);
+    }
+  }, [isStreaming]);
 
   // Visuals announced by a still-streaming `ui_show` (`ui_surface_pending`).
   // Each holds a shimmer at the end of the row's activity area until its
@@ -629,11 +643,33 @@ export function TranscriptMessageBody({
   );
 
   const renderTextWithInlineSurfaces = (
-    text: string,
+    rawText: string,
     key: string,
     streamWordFade?: "revealing" | "caughtUp",
     collapsed = false,
   ) => {
+    // Emails the user staged from the inbox ride in their message as
+    // delimited blocks (see `email-reference.ts`). Those are for the
+    // assistant; the user sees them as the cards they attached, with only
+    // what they typed drawn as text.
+    const { emails, rest: text } = isUser
+      ? extractEmailReferences(rawText)
+      : { emails: [], rest: rawText };
+    if (emails.length > 0) {
+      return (
+        <div key={key} className="flex w-full flex-col gap-2">
+          <MessageEmailReferences emails={emails} />
+          {text
+            ? renderTextWithInlineSurfaces(
+                text,
+                `${key}-text`,
+                streamWordFade,
+                collapsed,
+              )
+            : null}
+        </div>
+      );
+    }
     const textClass = collapsed ? collapsedSegmentClass : segmentClass;
     // `MarkdownMessage` sets its own `text-chat text-[var(--content-default)]`
     // on its container, so a color on the wrapper alone never reaches the
@@ -1024,7 +1060,8 @@ export function TranscriptMessageBody({
     items: Array<{ kind: "text" | "nonText"; node: ReactNode }>,
   ): ReactNode => {
     type Slot =
-      { kind: "bubble"; nodes: ReactNode[] } | { kind: "raw"; node: ReactNode };
+      | { kind: "bubble"; nodes: ReactNode[] }
+      | { kind: "raw"; node: ReactNode };
     const slots: Slot[] = [];
     let textRun: ReactNode[] = [];
 
@@ -1298,19 +1335,21 @@ export function TranscriptMessageBody({
     groups,
     groupDrawsVisibleOutput,
   );
-  // Three reasons no group is collapsible, after which the whole response
+  // Four reasons no group is collapsible, after which the whole response
   // renders inline at full size and none of the collapsed styling applies: the
   // per-user opt-out; the `send-user-message` flag, under which every text
   // block is a message the assistant chose to send and none is "earlier"
-  // prose to fold away; and a row the daemon marks private, whose prose
-  // arrives projected into thinking blocks with the reply as its own text.
-  // The third reason is the row's own marker, so a row sent under the flag
-  // stays inline after the flag is turned off.
+  // prose to fold away; a row the daemon marks private, whose prose arrives
+  // projected into thinking blocks with the reply as its own text; and a row
+  // the reader watched stream in. The third reason is the row's own marker,
+  // so a row sent under the flag stays inline after the flag is turned off.
   const collapsibleGroupIndexes = groups.flatMap((group, groupIndex) => {
     if (
       inlineAssistantIntermediates ||
       hideThinkingUi ||
-      message.assistantTextVisibility === "private"
+      message.assistantTextVisibility === "private" ||
+      isStreaming ||
+      watchedLive
     ) {
       return [];
     }
@@ -1398,7 +1437,6 @@ export function TranscriptMessageBody({
       assistantContent.push(
         <AssistantContentDisclosure
           key={`earlier-activity-${groupIndex}`}
-          isStreaming={isStreaming}
           items={collapsibleRowIndexes.map((rowIndex) => ({
             key: `earlier-activity-item-${rowIndex}`,
             node: renderedGroups[rowIndex],

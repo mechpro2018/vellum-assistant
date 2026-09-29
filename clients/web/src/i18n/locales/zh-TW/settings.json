@@ -328,9 +328,6 @@
   "billingPage": {
     "billingTab": "帳單",
     "billingUnavailable": "目前助理狀態下無法使用帳單功能。",
-    "finishSetupBody": "您的助理電子郵件地址尚未設定。",
-    "finishSetupButton": "完成設定",
-    "finishSetupTitle": "完成 {plan} 方案的設定",
     "loadingBilling": "載入帳單中…",
     "platformLoginNotice": "登入 Vellum 平台以管理帳單和用量。",
     "usageTab": "用量"
@@ -766,25 +763,6 @@
     "startSession": "啟動助理醫生工作階段",
     "thinking": "正在思考…",
     "title": "助理醫生"
-  },
-  "domainField": {
-    "subdomainAriaLabel": "子網域"
-  },
-  "domainStep": {
-    "continue": "繼續",
-    "domainLockedMessage": "此網域已設定，無法變更。",
-    "domainSetRedirecting": "網域已設定 - 正在重新導向…",
-    "handleImmutableNotice": "設定後，您將無法變更處理名稱。",
-    "handleLabel": "處理名稱 (公開)",
-    "machineBusyNotice": "您的助理正在重新啟動 - 您稍後即可設定網域。",
-    "next": "下一步",
-    "prefixLabel": "前綴",
-    "registerSubdomainFailed": "無法註冊該子網域。請嘗試其他子網域。",
-    "skip": "跳過",
-    "subtitle": "為您的助理設定電子郵件。",
-    "title": "助理電子郵件",
-    "emailUsernamePlaceholder": "hi",
-    "subdomainExamplePlaceholder": "my-assistant"
   },
   "downgradeReconfirmModal": {
     "body": "降級將移除以下專業版功能：",
@@ -1274,6 +1252,10 @@
     "alreadyOnPlanToast": "您已是此方案。",
     "checkoutFailedToast": "無法啟動升級結帳。請再試一次。",
     "current": "目前",
+    "dailyUsageBar": "每日使用量，{resetPhrase} 重設",
+    "dailyUsageExhausted": "您已用完今日的免費用量。新增點數以繼續使用您的助理",
+    "dailyUsageResets": "{resetPhrase} 重設",
+    "dailyUsageTitle": "每日使用量",
     "endsOn": "您的方案將於 {date} 結束。",
     "freeForever": "永久免費",
     "heading": "方案",
@@ -1284,13 +1266,14 @@
     "powerUp": "升級",
     "powerUpFor": "升級至 +{amount}/月",
     "usageBalanceAddCredits": "新增",
-    "usageBalanceBarRenews": "目前使用量，{date} 續訂",
-    "usageBalanceBarResets": "目前使用量，{date} 重設",
+    "usageBalanceBarRenews": "每月使用量，{date} 續訂",
+    "usageBalanceBarResets": "每月使用量，{date} 重設",
     "usageBalanceExhausted": "新增點數以繼續使用您的助理",
     "usageBalancePctUsed": "已使用 {pct}%",
     "usageBalanceRenews": "{date} 續訂",
     "usageBalanceResets": "{date} 重設",
-    "usageBalanceTitle": "目前使用量",
+    "usageBalanceTitleMonthly": "每月使用量",
+    "usageBalanceTitleOverall": "總使用量",
     "usageChip": "{name} 使用量，每月重設",
     "viewAllPlans": "檢視所有方案"
   },
@@ -1527,6 +1510,7 @@
     "title": "模態"
   },
   "profileRow": {
+    "autoRouting": "透過 TypeSafe 的決策模型 Jev，將每則訊息路由到 Balanced、Quality、Budget 或 Fast",
     "actionsAriaLabel": "{displayName} 的動作",
     "defaultTag": "預設",
     "delete": "刪除",
@@ -1921,7 +1905,7 @@
     "title": "傳送",
     "tryAgain": "重試",
     "unsupportedDestination": "不支援的傳送目標。",
-    "verifyTitle": "傳輸完成 - 請驗證您的新助理是否正常運作。",
+    "verifyTitle": "傳輸完成",
     "backupCreateFailed": "雲端備份失敗（HTTP {status}）。",
     "backupListFailed": "無法取得雲端備份清單（HTTP {status}）。",
     "backupLocalFailed": "備份失敗（HTTP {status}）。",
@@ -1929,7 +1913,11 @@
     "backupNoSnapshotName": "雲端備份未回傳快照名稱。",
     "backupNotReady": "雲端備份 {snapshot} 在 {seconds} 秒後仍未就緒。",
     "backupStep": "正在備份助手...",
-    "backupUnsupported": "此助手在遷移前不支援備份。"
+    "backupUnsupported": "此助手在遷移前不支援備份。",
+    "confirmWarning": "傳送完成前將無法聊天。",
+    "transferringNote": "這可能需要一些時間。請保持應用程式開啟，直到傳送完成。",
+    "transferringTitle": "正在傳送助理...",
+    "verifyMessage": "請驗證您的新助理是否正常運作，然後確認切換。"
   },
   "textToSpeechCard": {
     "subtitle": "設定您的助理如何說話",
@@ -2258,6 +2246,10 @@
     "loadingAria": "正在載入語音",
     "title": "語音",
     "titleWithName": "{name} 的語音"
+  },
+  "voiceStartConfirmationToggle": {
+    "description": "連按兩次語音鍵時會先顯示確認。",
+    "label": "開始語音聊天前詢問"
   },
   "webFetchCard": {
     "apiBaseHint": "留空以使用雲端預設值 ({defaultBase})。",
