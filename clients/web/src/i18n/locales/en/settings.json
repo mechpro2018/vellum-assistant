@@ -341,7 +341,6 @@
     "degradedNotice": "Pending charges could not be calculated. The balance shown may be incomplete.",
     "earnCreditsButton": "Earn Free Credits",
     "loadError": "Failed to load billing summary. Please try again later.",
-    "loading": "Loading billing summary...",
     "lowBalanceToggle": "Custom Low Balance Alert",
     "noInfo": "No billing information available.",
     "subtitle": "Credits used when usage limit is reached",
