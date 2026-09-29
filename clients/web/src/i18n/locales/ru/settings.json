@@ -314,9 +314,6 @@
   "billingPage": {
     "billingTab": "Оплата",
     "billingUnavailable": "Оплата недоступна при текущем состоянии ассистента.",
-    "finishSetupBody": "Почта ассистента ещё не настроена.",
-    "finishSetupButton": "Завершить настройку",
-    "finishSetupTitle": "Завершение настройки плана {plan}",
     "loadingBilling": "Загрузка оплаты…",
     "platformLoginNotice": "Вход на платформу Vellum для управления оплатой и использованием.",
     "usageTab": "Использование"
@@ -752,25 +749,6 @@
     "startSession": "Начать сессию Doctor",
     "thinking": "Думает…",
     "title": "Doctor"
-  },
-  "domainField": {
-    "subdomainAriaLabel": "Поддомен"
-  },
-  "domainStep": {
-    "continue": "Продолжить",
-    "domainLockedMessage": "Этот домен уже задан и его нельзя сменить.",
-    "domainSetRedirecting": "Домен задан, перенаправляем…",
-    "handleImmutableNotice": "После установки идентификатор сменить нельзя.",
-    "handleLabel": "Идентификатор (публичный)",
-    "machineBusyNotice": "Ассистент перезапускается: домен можно будет задать чуть позже.",
-    "next": "Далее",
-    "prefixLabel": "Префикс",
-    "registerSubdomainFailed": "Не удалось зарегистрировать этот поддомен. Выбор другого.",
-    "skip": "Пропустить",
-    "subtitle": "Настройка почты для ассистента.",
-    "title": "Почта ассистента",
-    "emailUsernamePlaceholder": "hi",
-    "subdomainExamplePlaceholder": "my-assistant"
   },
   "downgradeReconfirmModal": {
     "body": "При понижении пропадут эти функции Pro:",
@@ -1259,6 +1237,10 @@
     "alreadyOnPlanToast": "Этот план уже активен.",
     "checkoutFailedToast": "Не удалось начать оплату повышения. Повторите попытку.",
     "current": "Текущий",
+    "dailyUsageBar": "Дневное использование, сброс в {resetPhrase}",
+    "dailyUsageExhausted": "Вы использовали бесплатный лимит на сегодня. Добавьте кредиты, чтобы продолжить пользоваться ассистентом",
+    "dailyUsageResets": "Сброс в {resetPhrase}",
+    "dailyUsageTitle": "Дневное использование",
     "endsOn": "План закончится {date}.",
     "freeForever": "Бесплатно навсегда",
     "heading": "План",
@@ -1269,13 +1251,14 @@
     "powerUp": "Усилить",
     "powerUpFor": "Усилить за +{amount}/мес",
     "usageBalanceAddCredits": "Добавить",
-    "usageBalanceBarRenews": "Текущее использование, продлится {date}",
-    "usageBalanceBarResets": "Текущее использование, сброс {date}",
+    "usageBalanceBarRenews": "Месячное использование, продлится {date}",
+    "usageBalanceBarResets": "Месячное использование, сброс {date}",
     "usageBalanceExhausted": "Добавление кредитов, чтобы продолжить пользоваться ассистентом",
     "usageBalancePctUsed": "использовано {pct}%",
     "usageBalanceRenews": "Продлится {date}",
     "usageBalanceResets": "Сброс {date}",
-    "usageBalanceTitle": "Текущее использование",
+    "usageBalanceTitleMonthly": "Месячное использование",
+    "usageBalanceTitleOverall": "Общее использование",
     "usageChip": "Использование {name}, сброс каждый месяц",
     "viewAllPlans": "Все планы"
   },
@@ -1532,6 +1515,7 @@
     "title": "Модальности"
   },
   "profileRow": {
+    "autoRouting": "Направляет каждое сообщение в Balanced, Quality, Budget или Fast с помощью Jev, модели принятия решений TypeSafe",
     "actionsAriaLabel": "Действия для {displayName}",
     "defaultTag": "По умолчанию",
     "delete": "Удалить",
@@ -1879,6 +1863,7 @@
     "confirmAndSwitch": "Подтвердить и переключиться",
     "confirmLabel": "Teleport",
     "confirmMessage": "Данные скопируются в новую среду. Текущий ассистент останется доступен до подтверждения, что новый работает.",
+    "confirmWarning": "Чат будет недоступен, пока перенос не завершится.",
     "dockerDescriptionLinux": "Запустить ассистента в контейнере Docker на этом компьютере.",
     "dockerDescriptionMacos": "Запустить ассистента в контейнере Docker на этом Mac.",
     "dockerDescriptionWindows": "Запустить ассистента в контейнере Docker на этом ПК.",
@@ -1924,9 +1909,12 @@
     "teleportFailed": "Teleport не удался: {message}",
     "teleportFailedUnknown": "Teleport не удался.",
     "title": "Teleport",
+    "transferringNote": "Это может занять некоторое время. Не закрывай приложение, пока перенос не завершится.",
+    "transferringTitle": "Перенос ассистента...",
     "tryAgain": "Попробовать снова",
     "unsupportedDestination": "Неподдерживаемое назначение Teleport.",
-    "verifyTitle": "Перенос завершён: проверь, что новый ассистент работает."
+    "verifyMessage": "Проверь, что новый ассистент работает, затем подтверди переключение.",
+    "verifyTitle": "Перенос завершён"
   },
   "textToSpeechCard": {
     "subtitle": "Настройка того, как ассистент произносит слова",
@@ -2253,6 +2241,10 @@
     "loadingAria": "Загрузка голоса",
     "title": "Голос",
     "titleWithName": "Голос {name}"
+  },
+  "voiceStartConfirmationToggle": {
+    "description": "При двойном нажатии голосовой клавиши сначала появится подтверждение.",
+    "label": "Спрашивать перед началом голосового чата"
   },
   "webFetchCard": {
     "apiBaseHint": "Пустое поле: облачное значение по умолчанию ({defaultBase}).",

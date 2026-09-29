@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { areChatReplyAlertsDisabled } from "./chat-reply-policy.js";
 import type { ChannelDestination } from "./types.js";
 import type { Urgency } from "./urgency.js";
 
@@ -61,14 +62,23 @@ export function notificationConversationId(
   return readCompletionContext(event)?.conversationId ?? event.sourceContextId;
 }
 
-/** Completion presentation is independent of urgency and channel routing. */
+export interface NotificationPresentationContext {
+  assistantInitiatedThreadCreated?: boolean;
+}
+
+/** Presentation is independent of urgency and channel routing. */
 export function isLocalNotificationSilent(
   event: CompletionEvent & { urgency: Urgency },
+  presentation?: NotificationPresentationContext,
 ): boolean {
-  if (event.contextPayload?.quiet === true) {
+  if (
+    event.contextPayload?.quiet === true ||
+    areChatReplyAlertsDisabled(event.sourceEventName)
+  ) {
     return true;
   }
   return (
+    !presentation?.assistantInitiatedThreadCreated &&
     !isCompletionNotification(event) &&
     event.urgency !== "high" &&
     event.urgency !== "critical"

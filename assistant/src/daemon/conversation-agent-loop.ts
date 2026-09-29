@@ -212,6 +212,13 @@ const DAILY_LIMIT_REACHED_ASSISTANT_REPLY =
   "I had to stop because you hit your daily credit limit. Raise the limit in Settings → Billing and we can pick up where we left off, or I can continue once it resets.";
 
 /**
+ * The free-tier counterpart: the cap is the platform's, not a setting, so the
+ * ways forward are the UTC reset, an upgrade, or extra credits.
+ */
+const FREE_TIER_DAILY_LIMIT_REACHED_ASSISTANT_REPLY =
+  "I had to stop because you've used today's free usage. It resets at midnight UTC, or you can upgrade or add credits in Settings → Billing and we can pick up where we left off.";
+
+/**
  * The assistant-voice text a managed-billing failure persists in place of the
  * classification's own `userMessage`, or `null` when the classification copy is
  * already right for a transcript row.
@@ -228,6 +235,8 @@ function managedBillingAssistantReply(
       return OUT_OF_CREDITS_ASSISTANT_REPLY;
     case "daily_limit_reached":
       return DAILY_LIMIT_REACHED_ASSISTANT_REPLY;
+    case "free_tier_daily_limit_reached":
+      return FREE_TIER_DAILY_LIMIT_REACHED_ASSISTANT_REPLY;
     default:
       return null;
   }
@@ -1714,6 +1723,7 @@ export async function runAgentLoopImpl(
           supportsDynamicUi: conversationSupportsDynamicUi(ctx),
           trust: loopTrust,
           overrideProfile: turnOverrideProfile,
+          ...(autoRoute ? { overrideProfileOrigin: "auto" as const } : {}),
           ...(forceOverrideProfile ? { forceOverrideProfile: true } : {}),
           resolveOverrideProfile: refreshCurrentProfileState,
           ...(onModelCallPrepared !== undefined ? { onModelCallPrepared } : {}),
@@ -2138,6 +2148,9 @@ export async function runAgentLoopImpl(
     // path to the terminal SSE that re-enables the composer.
     ctx.messages = restoredHistory;
 
+    // The row's override is whichever profile served the last call.
+    const mainRowOverrideProfile =
+      state.exchangeInferenceProfile ?? refreshCurrentProfileState() ?? null;
     emitUsage(
       ctx,
       state.exchangeInputTokens,
@@ -2162,16 +2175,17 @@ export async function runAgentLoopImpl(
       // backup (via `state.exchangeProviderName` / `state.model`), so
       // attributing the profile from the primary would write a row that
       // contradicts itself. `forceOverrideProfile` floats it above the
-      // call-site profile exactly as the fallback dispatch did.
+      // call-site profile exactly as the fallback dispatch did. The Auto
+      // origin applies only while the row's override is still the router's
+      // pick: a profile switched in mid-turn is the user's.
       {
         callSite: inferenceCallSite,
-        overrideProfile:
-          state.exchangeInferenceProfile ??
-          refreshCurrentProfileState() ??
-          null,
+        overrideProfile: mainRowOverrideProfile,
         ...(state.exchangeInferenceProfile !== undefined
           ? { forceOverrideProfile: true }
-          : {}),
+          : autoRoute && mainRowOverrideProfile === autoRoute.profile
+            ? { overrideProfileOrigin: "auto" as const }
+            : {}),
       },
       turnCronRunId,
     );

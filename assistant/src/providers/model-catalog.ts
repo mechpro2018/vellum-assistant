@@ -332,6 +332,24 @@ const RAW_PROVIDER_CATALOG: ProviderCatalogEntry[] = [
         },
       },
       {
+        id: "claude-sonnet-5-5",
+        displayName: "Claude Sonnet 5.5",
+        contextWindowTokens: 1000000,
+        maxOutputTokens: 128000,
+        longContextPricingThresholdTokens: 200000,
+        supportsThinking: true,
+        adaptiveThinkingOnly: true,
+        supportsCaching: true,
+        supportsVision: true,
+        supportsToolUse: true,
+        pricing: {
+          inputPer1mTokens: 2,
+          outputPer1mTokens: 10,
+          cacheWritePer1mTokens: 2.5,
+          cacheReadPer1mTokens: 0.2,
+        },
+      },
+      {
         id: "claude-sonnet-5",
         displayName: "Claude Sonnet 5",
         contextWindowTokens: 1000000,
@@ -1062,22 +1080,9 @@ const RAW_PROVIDER_CATALOG: ProviderCatalogEntry[] = [
           cacheReadPer1mTokens: 0.3,
         },
       },
-      {
-        id: "accounts/fireworks/models/kimi-k2p6",
-        displayName: "Kimi K2.6",
-        contextWindowTokens: 262144,
-        maxOutputTokens: 32768,
-        supportsThinking: true,
-        supportsCaching: true,
-        supportsVision: true,
-        supportsToolUse: true,
-        maxEffort: "high",
-        pricing: {
-          inputPer1mTokens: 0.95,
-          outputPer1mTokens: 4.0,
-          cacheReadPer1mTokens: 0.16,
-        },
-      },
+      // Kimi K2.6 (accounts/fireworks/models/kimi-k2p6) is intentionally
+      // absent: Fireworks has no serverless deployment for it (the serving
+      // API returns 404). Kimi K3 is its successor.
       {
         id: "accounts/fireworks/models/glm-5p3",
         displayName: "GLM 5.3",
@@ -1117,23 +1122,9 @@ const RAW_PROVIDER_CATALOG: ProviderCatalogEntry[] = [
           cacheReadPer1mTokens: 0.029,
         },
       },
-      {
-        id: "accounts/fireworks/models/glm-5p2",
-        displayName: "GLM 5.2",
-        // Fireworks serves GLM 5.2 with a 1,040K input window.
-        contextWindowTokens: 1040000,
-        maxOutputTokens: 131072,
-        supportsThinking: true,
-        supportsCaching: true,
-        supportsVision: false,
-        supportsToolUse: true,
-        maxEffort: "max",
-        pricing: {
-          inputPer1mTokens: 1.4,
-          outputPer1mTokens: 4.4,
-          cacheReadPer1mTokens: 0.26,
-        },
-      },
+      // GLM 5.2 (accounts/fireworks/models/glm-5p2) is intentionally absent:
+      // it is on the Fireworks serverless decommission list. GLM 5.3 is its
+      // successor.
       // Kimi K2.5 (accounts/fireworks/models/kimi-k2p5) is intentionally
       // absent: Fireworks serves it on-demand/dedicated only, so serverless
       // chat/completions calls 404 ("not found, inaccessible, and/or not
@@ -1160,40 +1151,30 @@ const RAW_PROVIDER_CATALOG: ProviderCatalogEntry[] = [
       // intentionally absent: Fireworks has no serverless deployment for
       // it (the model page claims serverless support, but the serving API
       // returns 404).
+      // DeepSeek V4 Pro (accounts/fireworks/models/deepseek-v4-pro-0813)
+      // and DeepSeek V4 Flash
+      // (accounts/fireworks/models/deepseek-v4-flash-0731) are intentionally
+      // absent: Fireworks has no serverless deployment for them (the
+      // serving API returns 404). DeepSeek V4.1 Flash is the serverless
+      // successor Fireworks names for both.
       {
-        id: "accounts/fireworks/models/deepseek-v4-pro-0813",
-        displayName: "DeepSeek V4 Pro",
-        contextWindowTokens: 1040000,
+        id: "accounts/fireworks/models/deepseek-v4p1-flash",
+        displayName: "DeepSeek V4.1 Flash",
+        contextWindowTokens: 1048576,
         maxOutputTokens: 131072,
         supportsThinking: true,
         supportsCaching: true,
-        supportsVision: false,
+        supportsVision: true,
         supportsToolUse: true,
         maxEffort: "max",
         pricing: {
-          inputPer1mTokens: 1.32,
-          outputPer1mTokens: 3.96,
-          cacheReadPer1mTokens: 0.044,
-        },
-      },
-      {
-        id: "accounts/fireworks/models/deepseek-v4-flash-0731",
-        displayName: "DeepSeek V4 Flash",
-        contextWindowTokens: 1040000,
-        maxOutputTokens: 131072,
-        supportsThinking: true,
-        supportsCaching: true,
-        supportsVision: false,
-        supportsToolUse: true,
-        maxEffort: "max",
-        pricing: {
-          inputPer1mTokens: 0.14,
-          outputPer1mTokens: 0.28,
-          cacheReadPer1mTokens: 0.028,
+          inputPer1mTokens: 0.3,
+          outputPer1mTokens: 1.2,
+          cacheReadPer1mTokens: 0.006,
         },
       },
     ],
-    defaultModel: "accounts/fireworks/models/deepseek-v4-flash-0731",
+    defaultModel: "accounts/fireworks/models/deepseek-v4p1-flash",
     apiKeyUrl: "https://fireworks.ai/account/api-keys",
     apiKeyPlaceholder: "fw_...",
   },
@@ -1371,6 +1352,24 @@ const RAW_PROVIDER_CATALOG: ProviderCatalogEntry[] = [
           outputPer1mTokens: 25,
           cacheWritePer1mTokens: 6.25,
           cacheReadPer1mTokens: 0.5,
+        },
+      },
+      {
+        id: "anthropic/claude-sonnet-5.5",
+        displayName: "Claude Sonnet 5.5",
+        contextWindowTokens: 1000000,
+        maxOutputTokens: 128000,
+        longContextPricingThresholdTokens: 200000,
+        supportsThinking: true,
+        adaptiveThinkingOnly: true,
+        supportsCaching: true,
+        supportsVision: true,
+        supportsToolUse: true,
+        pricing: {
+          inputPer1mTokens: 2,
+          outputPer1mTokens: 10,
+          cacheWritePer1mTokens: 2.5,
+          cacheReadPer1mTokens: 0.2,
         },
       },
       {
@@ -1912,32 +1911,6 @@ const RAW_PROVIDER_CATALOG: ProviderCatalogEntry[] = [
       },
       // DeepSeek
       {
-        id: "deepseek/deepseek-r1-0528",
-        displayName: "DeepSeek R1",
-        contextWindowTokens: 163840,
-        maxOutputTokens: 32000,
-        supportsThinking: true,
-        supportsCaching: true,
-        supportsVision: false,
-        supportsToolUse: true,
-        pricing: {
-          inputPer1mTokens: 0.5,
-          outputPer1mTokens: 2.15,
-          cacheReadPer1mTokens: 0.35,
-        },
-      },
-      {
-        id: "deepseek/deepseek-chat-v3-0324",
-        displayName: "DeepSeek V3",
-        contextWindowTokens: 163840,
-        maxOutputTokens: 32000,
-        supportsThinking: false,
-        supportsCaching: false,
-        supportsVision: false,
-        supportsToolUse: true,
-        pricing: { inputPer1mTokens: 0.25, outputPer1mTokens: 1.0 },
-      },
-      {
         id: "deepseek/deepseek-v4-pro",
         displayName: "DeepSeek V4 Pro",
         contextWindowTokens: 1048576,
@@ -1970,6 +1943,32 @@ const RAW_PROVIDER_CATALOG: ProviderCatalogEntry[] = [
           outputPer1mTokens: 0.28,
           cacheReadPer1mTokens: 0.028,
         },
+      },
+      {
+        id: "deepseek/deepseek-r1-0528",
+        displayName: "DeepSeek R1",
+        contextWindowTokens: 163840,
+        maxOutputTokens: 32000,
+        supportsThinking: true,
+        supportsCaching: true,
+        supportsVision: false,
+        supportsToolUse: true,
+        pricing: {
+          inputPer1mTokens: 0.5,
+          outputPer1mTokens: 2.15,
+          cacheReadPer1mTokens: 0.35,
+        },
+      },
+      {
+        id: "deepseek/deepseek-chat-v3-0324",
+        displayName: "DeepSeek V3",
+        contextWindowTokens: 163840,
+        maxOutputTokens: 32000,
+        supportsThinking: false,
+        supportsCaching: false,
+        supportsVision: false,
+        supportsToolUse: true,
+        pricing: { inputPer1mTokens: 0.25, outputPer1mTokens: 1.0 },
       },
       // Qwen
       {
@@ -2428,6 +2427,24 @@ const RAW_PROVIDER_CATALOG: ProviderCatalogEntry[] = [
         },
       },
       {
+        id: "anthropic/claude-sonnet-5.5",
+        displayName: "Claude Sonnet 5.5",
+        contextWindowTokens: 1000000,
+        maxOutputTokens: 128000,
+        longContextPricingThresholdTokens: 200000,
+        supportsThinking: true,
+        adaptiveThinkingOnly: true,
+        supportsCaching: true,
+        supportsVision: true,
+        supportsToolUse: true,
+        pricing: {
+          inputPer1mTokens: 2,
+          outputPer1mTokens: 10,
+          cacheWritePer1mTokens: 2.5,
+          cacheReadPer1mTokens: 0.2,
+        },
+      },
+      {
         id: "anthropic/claude-sonnet-5",
         displayName: "Claude Sonnet 5",
         contextWindowTokens: 1000000,
@@ -2728,6 +2745,46 @@ const RAW_PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     defaultModel: "thinkingmachines/inkling",
     apiKeyUrl: "https://app.baseten.co/settings/api_keys",
     apiKeyPlaceholder: "Your Baseten API key",
+  },
+  {
+    id: "ionet",
+    displayName: "IO Intelligence",
+    subtitle:
+      "Open models served by IO Intelligence, io.net's inference platform (OpenAI-compatible). Requires an IO Intelligence API key.",
+    setupMode: "api-key",
+    setupHint:
+      "Enter your IO Intelligence API key to enable IO Intelligence models.",
+    envVar: "IONET_API_KEY",
+    credentialsGuide: {
+      description: "Sign in to io.net and create an IO Intelligence API key.",
+      url: "https://io.net/docs/guides/intelligence/api-keys-and-secrets",
+      linkLabel: "Open io.net",
+    },
+    // Model ids are Hugging Face-style `org/name`. Context windows and tool
+    // support come from the endpoint's live `GET /models` catalog, and every
+    // entry is accessible at the basic access tier.
+    models: [
+      {
+        id: "meta-llama/Llama-3.3-70B-Instruct",
+        displayName: "Llama 3.3 70B Instruct",
+        contextWindowTokens: 128000,
+        defaultContextWindowTokens: 128000,
+        maxOutputTokens: 4096,
+        supportsToolUse: true,
+      },
+      {
+        id: "openai/gpt-oss-20b",
+        displayName: "GPT-OSS 20B",
+        contextWindowTokens: 64000,
+        defaultContextWindowTokens: 64000,
+        maxOutputTokens: 32768,
+        supportsThinking: true,
+        supportsToolUse: true,
+      },
+    ],
+    defaultModel: "meta-llama/Llama-3.3-70B-Instruct",
+    apiKeyUrl: "https://io.net/docs/guides/intelligence/api-keys-and-secrets",
+    apiKeyPlaceholder: "Your IO Intelligence API key",
   },
   {
     id: "poolside",

@@ -15,6 +15,7 @@ import { getIsContainerized } from "../config/env-registry.js";
 import { connectCdpWsTransport } from "../tools/browser/cdp-client/cdp-inspect/ws-transport.js";
 import { terminateProcessTree } from "../util/host-process.js";
 import { getLogger } from "../util/logger.js";
+import { CHILD_OOM_SCORE_ADJ, withOomScoreAdj } from "../util/oom-priority.js";
 import { getDataDir, getWorkspaceDir } from "../util/platform.js";
 import { sleep } from "../util/retry.js";
 import { DesktopBrowserClient } from "./desktop-browser-client.js";
@@ -46,7 +47,7 @@ const log = getLogger("desktop-session");
 
 export const DESKTOP_VNC_PORT = 5999;
 const DESKTOP_GEOMETRY = `${DESKTOP_WIDTH}x${DESKTOP_HEIGHT}`;
-const DESKTOP_LINGER_MS = 24 * 60 * 60_000;
+const DESKTOP_LINGER_MS = 8 * 60 * 60_000;
 const VNC_READY_DEADLINE_MS = 10_000;
 const VNC_PROBE_INTERVAL_MS = 100;
 const KILL_GRACE_MS = 2_000;
@@ -928,8 +929,9 @@ function spawnDetached(
   request: DesktopSpawnRequest,
 ): DesktopChild {
   // Each child leads its own process group so teardown can kill everything
-  // it forked (Chrome's renderers, openbox's autostart) in one signal.
-  return Bun.spawn([...request.cmd], {
+  // it forked (Chrome's renderers, openbox's autostart) in one signal. The
+  // OOM wrapper execs in place, so pid and process group are unchanged.
+  return Bun.spawn(withOomScoreAdj(request.cmd, CHILD_OOM_SCORE_ADJ), {
     env: request.env,
     detached: true,
     stdio: ["ignore", "ignore", "ignore"],

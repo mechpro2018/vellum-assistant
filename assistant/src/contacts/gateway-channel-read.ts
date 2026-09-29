@@ -32,7 +32,7 @@ export async function gatewayContactChannelState(
     );
     return undefined;
   }
-  if (!result || (result as { contact?: unknown }).contact == null) {
+  if (result == null) {
     return undefined;
   }
   const parsed = GetContactIpcResponseSchema.safeParse(result);

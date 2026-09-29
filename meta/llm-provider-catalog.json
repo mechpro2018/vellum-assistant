@@ -154,6 +154,26 @@
           }
         },
         {
+          "id": "claude-sonnet-5-5",
+          "displayName": "Claude Sonnet 5.5",
+          "contextWindowTokens": 1000000,
+          "maxOutputTokens": 128000,
+          "defaultContextWindowTokens": 200000,
+          "longContextPricingThresholdTokens": 200000,
+          "longContextMode": "native-model",
+          "supportsThinking": true,
+          "adaptiveThinkingOnly": true,
+          "supportsCaching": true,
+          "supportsVision": true,
+          "supportsToolUse": true,
+          "pricing": {
+            "inputPer1mTokens": 2,
+            "outputPer1mTokens": 10,
+            "cacheWritePer1mTokens": 2.5,
+            "cacheReadPer1mTokens": 0.2
+          }
+        },
+        {
           "id": "claude-sonnet-5",
           "displayName": "Claude Sonnet 5",
           "contextWindowTokens": 1000000,
@@ -884,7 +904,7 @@
         "linkLabel": "Open Fireworks Dashboard"
       },
       "supportsPlatformAuth": true,
-      "defaultModel": "accounts/fireworks/models/deepseek-v4-flash-0731",
+      "defaultModel": "accounts/fireworks/models/deepseek-v4p1-flash",
       "models": [
         {
           "id": "accounts/fireworks/models/kimi-k3",
@@ -902,23 +922,6 @@
             "inputPer1mTokens": 3,
             "outputPer1mTokens": 15,
             "cacheReadPer1mTokens": 0.3
-          }
-        },
-        {
-          "id": "accounts/fireworks/models/kimi-k2p6",
-          "displayName": "Kimi K2.6",
-          "contextWindowTokens": 262144,
-          "maxOutputTokens": 32768,
-          "defaultContextWindowTokens": 200000,
-          "longContextMode": "native-model",
-          "supportsThinking": true,
-          "supportsCaching": true,
-          "supportsVision": true,
-          "supportsToolUse": true,
-          "pricing": {
-            "inputPer1mTokens": 0.95,
-            "outputPer1mTokens": 4,
-            "cacheReadPer1mTokens": 0.16
           }
         },
         {
@@ -958,23 +961,6 @@
           }
         },
         {
-          "id": "accounts/fireworks/models/glm-5p2",
-          "displayName": "GLM 5.2",
-          "contextWindowTokens": 1040000,
-          "maxOutputTokens": 131072,
-          "defaultContextWindowTokens": 200000,
-          "longContextMode": "native-model",
-          "supportsThinking": true,
-          "supportsCaching": true,
-          "supportsVision": false,
-          "supportsToolUse": true,
-          "pricing": {
-            "inputPer1mTokens": 1.4,
-            "outputPer1mTokens": 4.4,
-            "cacheReadPer1mTokens": 0.26
-          }
-        },
-        {
           "id": "accounts/fireworks/models/minimax-m3",
           "displayName": "MiniMax M3",
           "contextWindowTokens": 524288,
@@ -992,37 +978,20 @@
           }
         },
         {
-          "id": "accounts/fireworks/models/deepseek-v4-pro-0813",
-          "displayName": "DeepSeek V4 Pro",
-          "contextWindowTokens": 1040000,
+          "id": "accounts/fireworks/models/deepseek-v4p1-flash",
+          "displayName": "DeepSeek V4.1 Flash",
+          "contextWindowTokens": 1048576,
           "maxOutputTokens": 131072,
           "defaultContextWindowTokens": 200000,
           "longContextMode": "native-model",
           "supportsThinking": true,
           "supportsCaching": true,
-          "supportsVision": false,
+          "supportsVision": true,
           "supportsToolUse": true,
           "pricing": {
-            "inputPer1mTokens": 1.32,
-            "outputPer1mTokens": 3.96,
-            "cacheReadPer1mTokens": 0.044
-          }
-        },
-        {
-          "id": "accounts/fireworks/models/deepseek-v4-flash-0731",
-          "displayName": "DeepSeek V4 Flash",
-          "contextWindowTokens": 1040000,
-          "maxOutputTokens": 131072,
-          "defaultContextWindowTokens": 200000,
-          "longContextMode": "native-model",
-          "supportsThinking": true,
-          "supportsCaching": true,
-          "supportsVision": false,
-          "supportsToolUse": true,
-          "pricing": {
-            "inputPer1mTokens": 0.14,
-            "outputPer1mTokens": 0.28,
-            "cacheReadPer1mTokens": 0.028
+            "inputPer1mTokens": 0.3,
+            "outputPer1mTokens": 1.2,
+            "cacheReadPer1mTokens": 0.006
           }
         }
       ]
@@ -1212,6 +1181,26 @@
             "outputPer1mTokens": 25,
             "cacheWritePer1mTokens": 6.25,
             "cacheReadPer1mTokens": 0.5
+          }
+        },
+        {
+          "id": "anthropic/claude-sonnet-5.5",
+          "displayName": "Claude Sonnet 5.5",
+          "contextWindowTokens": 1000000,
+          "maxOutputTokens": 128000,
+          "defaultContextWindowTokens": 200000,
+          "longContextPricingThresholdTokens": 200000,
+          "longContextMode": "native-model",
+          "supportsThinking": true,
+          "adaptiveThinkingOnly": true,
+          "supportsCaching": true,
+          "supportsVision": true,
+          "supportsToolUse": true,
+          "pricing": {
+            "inputPer1mTokens": 2,
+            "outputPer1mTokens": 10,
+            "cacheWritePer1mTokens": 2.5,
+            "cacheReadPer1mTokens": 0.2
           }
         },
         {
@@ -1720,39 +1709,6 @@
           }
         },
         {
-          "id": "deepseek/deepseek-r1-0528",
-          "displayName": "DeepSeek R1",
-          "contextWindowTokens": 163840,
-          "maxOutputTokens": 32000,
-          "defaultContextWindowTokens": 163840,
-          "longContextMode": "unsupported",
-          "supportsThinking": true,
-          "supportsCaching": true,
-          "supportsVision": false,
-          "supportsToolUse": true,
-          "pricing": {
-            "inputPer1mTokens": 0.5,
-            "outputPer1mTokens": 2.15,
-            "cacheReadPer1mTokens": 0.35
-          }
-        },
-        {
-          "id": "deepseek/deepseek-chat-v3-0324",
-          "displayName": "DeepSeek V3",
-          "contextWindowTokens": 163840,
-          "maxOutputTokens": 32000,
-          "defaultContextWindowTokens": 163840,
-          "longContextMode": "unsupported",
-          "supportsThinking": false,
-          "supportsCaching": false,
-          "supportsVision": false,
-          "supportsToolUse": true,
-          "pricing": {
-            "inputPer1mTokens": 0.25,
-            "outputPer1mTokens": 1
-          }
-        },
-        {
           "id": "deepseek/deepseek-v4-pro",
           "displayName": "DeepSeek V4 Pro",
           "contextWindowTokens": 1048576,
@@ -1784,6 +1740,39 @@
             "inputPer1mTokens": 0.14,
             "outputPer1mTokens": 0.28,
             "cacheReadPer1mTokens": 0.028
+          }
+        },
+        {
+          "id": "deepseek/deepseek-r1-0528",
+          "displayName": "DeepSeek R1",
+          "contextWindowTokens": 163840,
+          "maxOutputTokens": 32000,
+          "defaultContextWindowTokens": 163840,
+          "longContextMode": "unsupported",
+          "supportsThinking": true,
+          "supportsCaching": true,
+          "supportsVision": false,
+          "supportsToolUse": true,
+          "pricing": {
+            "inputPer1mTokens": 0.5,
+            "outputPer1mTokens": 2.15,
+            "cacheReadPer1mTokens": 0.35
+          }
+        },
+        {
+          "id": "deepseek/deepseek-chat-v3-0324",
+          "displayName": "DeepSeek V3",
+          "contextWindowTokens": 163840,
+          "maxOutputTokens": 32000,
+          "defaultContextWindowTokens": 163840,
+          "longContextMode": "unsupported",
+          "supportsThinking": false,
+          "supportsCaching": false,
+          "supportsVision": false,
+          "supportsToolUse": true,
+          "pricing": {
+            "inputPer1mTokens": 0.25,
+            "outputPer1mTokens": 1
           }
         },
         {
@@ -2306,6 +2295,26 @@
           }
         },
         {
+          "id": "anthropic/claude-sonnet-5.5",
+          "displayName": "Claude Sonnet 5.5",
+          "contextWindowTokens": 1000000,
+          "maxOutputTokens": 128000,
+          "defaultContextWindowTokens": 200000,
+          "longContextPricingThresholdTokens": 200000,
+          "longContextMode": "native-model",
+          "supportsThinking": true,
+          "adaptiveThinkingOnly": true,
+          "supportsCaching": true,
+          "supportsVision": true,
+          "supportsToolUse": true,
+          "pricing": {
+            "inputPer1mTokens": 2,
+            "outputPer1mTokens": 10,
+            "cacheWritePer1mTokens": 2.5,
+            "cacheReadPer1mTokens": 0.2
+          }
+        },
+        {
           "id": "anthropic/claude-sonnet-5",
           "displayName": "Claude Sonnet 5",
           "contextWindowTokens": 1000000,
@@ -2610,6 +2619,43 @@
             "outputPer1mTokens": 4.05,
             "cacheReadPer1mTokens": 0.17
           }
+        }
+      ]
+    },
+    {
+      "id": "ionet",
+      "displayName": "IO Intelligence",
+      "subtitle": "Open models served by IO Intelligence, io.net's inference platform (OpenAI-compatible). Requires an IO Intelligence API key.",
+      "setupMode": "api-key",
+      "setupHint": "Enter your IO Intelligence API key to enable IO Intelligence models.",
+      "envVar": "IONET_API_KEY",
+      "apiKeyPlaceholder": "Your IO Intelligence API key",
+      "credentialsGuide": {
+        "description": "Sign in to io.net and create an IO Intelligence API key.",
+        "url": "https://io.net/docs/guides/intelligence/api-keys-and-secrets",
+        "linkLabel": "Open io.net"
+      },
+      "supportsPlatformAuth": false,
+      "defaultModel": "meta-llama/Llama-3.3-70B-Instruct",
+      "models": [
+        {
+          "id": "meta-llama/Llama-3.3-70B-Instruct",
+          "displayName": "Llama 3.3 70B Instruct",
+          "contextWindowTokens": 128000,
+          "maxOutputTokens": 4096,
+          "defaultContextWindowTokens": 128000,
+          "longContextMode": "unsupported",
+          "supportsToolUse": true
+        },
+        {
+          "id": "openai/gpt-oss-20b",
+          "displayName": "GPT-OSS 20B",
+          "contextWindowTokens": 64000,
+          "maxOutputTokens": 32768,
+          "defaultContextWindowTokens": 64000,
+          "longContextMode": "unsupported",
+          "supportsThinking": true,
+          "supportsToolUse": true
         }
       ]
     },

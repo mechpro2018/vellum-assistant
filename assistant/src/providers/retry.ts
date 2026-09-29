@@ -35,6 +35,7 @@ import {
   shouldSkipPrimary,
   tryAcquireRecoveryProbe,
 } from "./fallback-breaker.js";
+import { resolveFireworksRequestHeaders } from "./fireworks/client.js";
 import { resolveLogitBiasPreset } from "./inference/logit-bias.js";
 import { MALFORMED_TOOL_CALL_MESSAGE } from "./malformed-tool-call.js";
 import {
@@ -77,10 +78,16 @@ const USAGE_ATTRIBUTION_HEADER_NAMES = {
   subagentSpawnMode: "X-Vellum-Subagent-Spawn-Mode",
 } as const;
 
-/** Providers whose transports consume `promptCacheKey` (OpenAI Responses
- *  `prompt_cache_key`); `RetryProvider` derives it from `selectionSeed` for
- *  these only. */
-const PROMPT_CACHE_KEY_PROVIDERS = new Set(["openai", "openrouter"]);
+/** Providers whose transports consume `promptCacheKey` (OpenAI Responses /
+ *  Chat Completions `prompt_cache_key`); `RetryProvider` derives it from
+ *  `selectionSeed` for these only. `openai-compatible` is included so
+ *  self-hosted bridges (e.g. a Claude Code shim) receive a stable
+ *  per-conversation key and can pin server-side sessions / prompt caches to it. */
+const PROMPT_CACHE_KEY_PROVIDERS = new Set([
+  "openai",
+  "openrouter",
+  "openai-compatible",
+]);
 
 /** Providers that support the `effort` config (extended thinking / reasoning). */
 const EFFORT_SUPPORTED_PROVIDERS = new Set([
@@ -681,6 +688,19 @@ function normalizeSendMessageOptions(
     nextConfig.requestHeaders = resolveOpenCodeRequestHeaders(conversationId);
   }
 
+  if (providerName === "fireworks") {
+    // Covers BYOK Fireworks and the Vellum-managed Fireworks upstream, which
+    // both dispatch through `FireworksProvider`. Keyless calls send no header.
+    const sessionKey = [config.selectionSeed, config.conversationId].find(
+      (value): value is string =>
+        typeof value === "string" && value.trim().length > 0,
+    );
+    const headers = resolveFireworksRequestHeaders(sessionKey);
+    if (Object.keys(headers).length > 0) {
+      nextConfig.requestHeaders = headers;
+    }
+  }
+
   // `overrideProfile`, `forceOverrideProfile`, `selectionSeed`,
   // `conversationId`, and `nativeWebSearchSentinel` are routing/resolution-time
   // concerns (consumed by the resolver below, `CallSiteRoutingProvider`'s
@@ -689,6 +709,7 @@ function normalizeSendMessageOptions(
   // (after the `openai` promptCacheKey copy above) so they never leak into
   // provider request bodies even when callers set them without a `callSite`.
   delete nextConfig.overrideProfile;
+  delete nextConfig.overrideProfileOrigin;
   delete nextConfig.forceOverrideProfile;
   delete nextConfig.selectionSeed;
   delete nextConfig.conversationId;
@@ -703,6 +724,7 @@ function normalizeSendMessageOptions(
     const attribution = resolveUsageAttribution({
       callSite: config.callSite,
       overrideProfile: config.overrideProfile,
+      overrideProfileOrigin: config.overrideProfileOrigin,
       forceOverrideProfile: config.forceOverrideProfile,
       selectionSeed: config.selectionSeed,
     });
@@ -910,6 +932,36 @@ function normalizeSendMessageOptions(
       }
       nextConfig.thinking = scrubbed;
     }
+  }
+
+  // Adaptive-thinking-only Claude models (Fable, Opus 5.5, Sonnet 5.5) cannot
+  // turn reasoning off, so stripping `thinking` below does not clear the
+  // forced-tool conflict and Anthropic 400s the request. Downgrade the forced
+  // choice to `auto` so the call goes out. The tool is no longer guaranteed:
+  // forced-tool call sites already treat a missing tool call as a failed
+  // result, which is what the 400 gave them on every request.
+  const forcedToolModel =
+    typeof nextConfig.model === "string" ? nextConfig.model : "";
+  const forcedToolChoice = nextConfig.tool_choice as
+    | Record<string, unknown>
+    | undefined;
+  if (
+    forcedToolChoice != null &&
+    (forcedToolChoice.type === "tool" || forcedToolChoice.type === "any") &&
+    isAdaptiveThinkingOnlyModel(forcedToolModel) &&
+    targetsAnthropicWire(providerName, forcedToolModel)
+  ) {
+    log.warn(
+      {
+        providerName,
+        callSite: config.callSite,
+        model: forcedToolModel,
+        droppedToolChoice: forcedToolChoice,
+      },
+      "Downgrading forced `tool_choice` to `auto` because this model always " +
+        "reasons and rejects forced tool use.",
+    );
+    nextConfig.tool_choice = { type: "auto" };
   }
 
   // Anthropic (and the gateways fronting Anthropic) rejects requests that

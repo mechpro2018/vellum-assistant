@@ -1,13 +1,15 @@
 import {
-  ArrowLeft,
+  Check,
+  ChevronLeft,
+  Copy,
   Loader2,
   MessageSquareText,
   Paperclip,
-  Send,
 } from "lucide-react";
 
 import { Button, cn } from "@vellumai/design-library";
 
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { useTranslation } from "@/i18n";
 
 import {
@@ -43,10 +45,22 @@ export interface EmailDetailProps {
 }
 
 /**
- * The reading pane. Subject first, then who and when, then the body as the
- * plain text the platform stores, then the attachments. An inbound message
- * ends in the one action this surface offers, asking the assistant to reply,
- * because the composer lives in chat rather than here.
+ * The reading pane, laid out as the design draws an open message: a header
+ * row with the sender's disc, the subject over the full date, and the
+ * actions on the trailing edge (asking the assistant to reply, and copying
+ * the message); then the From and To lines between two hairlines; then the
+ * body as the plain text the platform stores, and the attachments. The
+ * reply action exists only on an inbound message with something to act on
+ * it, because the composer lives in chat rather than here.
+ *
+ * Where the pane is too narrow for the subject and the actions to share a
+ * row (a phone, or the pane beside the list at `md`), the actions drop to
+ * a row of their own under the subject rather than squeezing it to a
+ * column of single characters. The header measures that from its own
+ * contents rather than a breakpoint: the subject column asks for a
+ * readable width, and the flex row wraps the actions the moment that plus
+ * the disc and the buttons would overflow, whatever the assistant's name
+ * happens to measure.
  */
 export function EmailDetail({
   email,
@@ -58,62 +72,124 @@ export function EmailDetail({
 }: EmailDetailProps) {
   const { t, i18n } = useTranslation("assistant-inbox");
   const inbound = email.direction === "inbound";
+  const subject = email.subject || t("emailListRow.noSubject");
+  const { copied, copy } = useCopyToClipboard({
+    errorMessage: t("emailDetail.copyFailed"),
+  });
+  const copyEmail = () => {
+    if (detail.status !== "ready") {
+      return;
+    }
+    copy(`${subject}\n\n${detail.body}`);
+  };
+
+  // The reply action is drawn in one of two places by the same `md`
+  // signal: in the phone's top row beside the way back, or in the header's
+  // action group beside the subject. One definition, so the two never
+  // differ in anything but size.
+  const replyButton = (size: "regular" | "large") =>
+    inbound && onAskToReply ? (
+      <Button
+        variant="outlined"
+        size={size}
+        leftIcon={<MessageSquareText />}
+        onClick={() => onAskToReply(email)}
+      >
+        {t("emailDetail.askToReply", { name: assistantName })}
+      </Button>
+    ) : null;
+  const hasReply = inbound && !!onAskToReply;
 
   return (
     <article
       className={cn("flex min-h-0 flex-col overflow-y-auto", className)}
       aria-labelledby={`email-subject-${email.id}`}
     >
-      <div className="flex flex-col gap-5 px-6 py-5">
-        {onBack ? (
-          /* The list is beside the pane from `md` up, so the way back is
-             only drawn where the pane has covered it. */
-          <div className="md:hidden">
-            <Button
-              variant="ghost"
-              size="compact"
-              leftIcon={<ArrowLeft />}
-              onClick={onBack}
-            >
-              {t("assistantInboxPage.backToList")}
-            </Button>
+      <div className="flex flex-col gap-4 px-5 py-5">
+        {onBack || hasReply ? (
+          /* The phone's top row, where the masthead has gone with the list
+             the pane covers: the one way back, a chevron to the list, and
+             the reply action on the trailing edge, both at the large size
+             a thumb finds first. */
+          <div className="flex items-center gap-2 md:hidden">
+            {onBack ? (
+              <Button
+                variant="outlined"
+                size="large"
+                iconOnly={<ChevronLeft />}
+                /* Already the touch size; the circle an icon button would
+                   grow into is more chrome than a way back needs. */
+                expandOnMobile={false}
+                onClick={onBack}
+                aria-label={t("assistantInboxPage.backToList")}
+                title={t("assistantInboxPage.backToList")}
+              />
+            ) : null}
+            {hasReply ? (
+              <div className="ml-auto">{replyButton("large")}</div>
+            ) : null}
           </div>
         ) : null}
 
-        <h2
-          id={`email-subject-${email.id}`}
-          className="text-title-medium text-[var(--content-emphasised)]"
-        >
-          {email.subject || t("emailListRow.noSubject")}
-        </h2>
+        <header className="flex flex-wrap items-center gap-x-2 gap-y-3">
+          {/* The disc and the subject wrap as one: `basis-64` is the
+              subject's readable minimum while the actions share its row,
+              and once they wrap, the pair grows to the full width (a lone
+              item on a flex line always shrinks to fit, so the disc never
+              strands the subject under it on a narrow pane). */}
+          <div className="flex min-w-0 flex-1 basis-64 items-center gap-2">
+            <SenderDisc participant={email.from} size={44} />
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <h2
+                id={`email-subject-${email.id}`}
+                className="min-w-0 break-words text-title-medium text-[var(--content-emphasised)]"
+              >
+                {subject}
+              </h2>
+              <time
+                dateTime={email.createdAt}
+                className="text-body-medium-lighter text-[var(--content-tertiary)]"
+              >
+                {formatEmailDetailTime(email.createdAt, i18n.language)}
+              </time>
+            </div>
+          </div>
+          {/* The phone's top row carries the reply action instead, and
+              copying a whole message is a desktop habit, so below `md` the
+              header is the disc and the subject alone. */}
+          <div className="flex shrink-0 flex-wrap items-center gap-2 max-md:hidden">
+            {replyButton("regular")}
+            <Button
+              variant="outlined"
+              iconOnly={copied ? <Check /> : <Copy />}
+              disabled={detail.status !== "ready"}
+              onClick={copyEmail}
+              aria-label={t("emailDetail.copyEmail")}
+              title={
+                copied ? t("emailDetail.copied") : t("emailDetail.copyEmail")
+              }
+            />
+          </div>
+        </header>
 
-        <div className="flex items-start gap-3">
-          <SenderDisc participant={email.from} size={40} />
-          <dl className="flex min-w-0 flex-1 flex-col gap-0.5 text-body-small-lighter">
-            <div className="flex min-w-0 gap-2">
-              <dt className="w-10 shrink-0 text-[var(--content-tertiary)]">
-                {t("emailDetail.from")}
-              </dt>
-              <dd className="min-w-0 truncate text-[var(--content-default)]">
-                {participantLabel(email.from)}
-              </dd>
-            </div>
-            <div className="flex min-w-0 gap-2">
-              <dt className="w-10 shrink-0 text-[var(--content-tertiary)]">
-                {t("emailDetail.to")}
-              </dt>
-              <dd className="min-w-0 truncate text-[var(--content-default)]">
-                {email.to.map(participantLabel).join(", ")}
-              </dd>
-            </div>
-          </dl>
-          <time
-            dateTime={email.createdAt}
-            className="shrink-0 text-body-small-lighter text-[var(--content-tertiary)]"
-          >
-            {formatEmailDetailTime(email.createdAt, i18n.language)}
-          </time>
-        </div>
+        <dl className="flex flex-col gap-3 border-y border-[var(--border-hover)] py-3 text-body-medium-lighter">
+          <div className="flex min-w-0 items-center gap-4">
+            <dt className="w-10 shrink-0 text-[var(--content-tertiary)]">
+              {t("emailDetail.from")}
+            </dt>
+            <dd className="min-w-0 truncate text-body-medium-default text-[var(--content-secondary)]">
+              {participantLabel(email.from)}
+            </dd>
+          </div>
+          <div className="flex min-w-0 items-center gap-4">
+            <dt className="w-10 shrink-0 text-[var(--content-tertiary)]">
+              {t("emailDetail.to")}
+            </dt>
+            <dd className="min-w-0 truncate text-body-medium-default text-[var(--content-secondary)]">
+              {email.to.map(participantLabel).join(", ")}
+            </dd>
+          </div>
+        </dl>
 
         {detail.status === "loading" ? (
           <p
@@ -129,7 +205,7 @@ export function EmailDetail({
           </p>
         ) : (
           <>
-            <div className="flex flex-col gap-4 text-body-medium-lighter text-[var(--content-default)]">
+            <div className="flex flex-col gap-[18px] text-body-medium-lighter text-[var(--content-default)]">
               {detail.body.split(/\n{2,}/).map((paragraph, index) => (
                 <p key={index} className="whitespace-pre-line">
                   {paragraph}
@@ -138,7 +214,7 @@ export function EmailDetail({
             </div>
 
             {detail.attachments.length > 0 ? (
-              <section className="flex flex-col gap-2">
+              <section className="flex flex-col gap-2 pt-1">
                 <h3 className="text-label-small-default text-[var(--content-tertiary)]">
                   {t("emailDetail.attachments")}
                 </h3>
@@ -166,27 +242,6 @@ export function EmailDetail({
             ) : null}
           </>
         )}
-
-        {/* The reply action exists only when something will act on it: a
-            button that looks live and does nothing is worse than none. */}
-        {inbound && onAskToReply ? (
-          <footer className="flex items-center gap-3 pt-2">
-            <Button
-              variant="outlined"
-              leftIcon={<MessageSquareText />}
-              onClick={() => onAskToReply(email)}
-            >
-              {t("emailDetail.askToReply", { name: assistantName })}
-            </Button>
-          </footer>
-        ) : !inbound ? (
-          <footer className="flex items-center gap-3 pt-2">
-            <span className="flex items-center gap-1.5 text-body-small-lighter text-[var(--content-tertiary)]">
-              <Send className="size-3.5" aria-hidden="true" />
-              {t("emailDetail.sentBy", { name: assistantName })}
-            </span>
-          </footer>
-        ) : null}
       </div>
     </article>
   );
