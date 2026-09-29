@@ -124,8 +124,9 @@ type BlockTelemetryDetail = {
 
 /**
  * Ordered steps that shrink an oversize report, least diagnostic loss first.
- * The activity groups, the newest section-trail entries, and the capture's
- * wait state are what attribute a block, so they go last.
+ * The activity groups, the busiest processes, the newest section-trail
+ * entries, and the capture's wait state are what attribute a block, so they
+ * go last.
  */
 const TRIM_STEPS: Array<{
   name: string;
@@ -173,6 +174,19 @@ const TRIM_STEPS: Array<{
     name: "section_trail_3",
     apply: (d) => {
       d.section_trail = d.section_trail.slice(0, 3);
+    },
+  },
+  {
+    // Keeps the daemon, which the sampler always lists last, for comparison.
+    name: "processes_3",
+    apply: (d) => {
+      const processes = d.stall_capture?.sample.processes;
+      if (processes) {
+        const daemon = processes.find((p) => p.name === "daemon");
+        const kept = processes.slice(0, 3);
+        d.stall_capture!.sample.processes =
+          daemon && !kept.includes(daemon) ? [...kept, daemon] : kept;
+      }
     },
   },
   {

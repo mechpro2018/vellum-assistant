@@ -228,6 +228,7 @@ const UNCONNECTED_PROVIDER_LABELS = [
   "LiteLLM",
   "OpenCode",
   "Baseten",
+  "IO Intelligence",
   "Poolside",
   "TypeSafe",
 ];
@@ -656,7 +657,7 @@ describe("ProfileEditorModal create mode — provider-first", () => {
     renderCreate([makeConnection("vellum-managed", "vellum")], onSave);
 
     selectProvider("Vellum");
-    selectModel("GLM 5.2");
+    selectModel("GLM 5.3");
 
     await waitFor(() => {
       expect(getSaveBtn().disabled).toBe(false);
@@ -1392,7 +1393,7 @@ describe("ProfileEditorModal create mode — provider-first", () => {
     expect(toastSuccessCalls).toEqual([]);
   });
 
-  test('saving Fireworks DeepSeek V4 Flash with effort "none" persists the explicit opt-out', async () => {
+  test('saving Fireworks DeepSeek V4.1 Flash with effort "none" persists the explicit opt-out', async () => {
     const saveCalls: { name: string; entry: Record<string, unknown> }[] = [];
     const onSave = (name: string, entry: unknown) => {
       saveCalls.push({ name, entry: entry as Record<string, unknown> });
@@ -1402,7 +1403,7 @@ describe("ProfileEditorModal create mode — provider-first", () => {
     renderCreate([makeConnection("fireworks-managed", "fireworks")], onSave);
 
     selectProvider("Fireworks");
-    selectModel("DeepSeek V4 Flash");
+    selectModel("DeepSeek V4.1 Flash");
     fireEvent.click(getButton("Advanced"));
     fireEvent.click(getButton("none"));
 

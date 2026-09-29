@@ -328,9 +328,6 @@
   "billingPage": {
     "billingTab": "Billing",
     "billingUnavailable": "Billing isn't available for the current assistant state.",
-    "finishSetupBody": "Your assistant's email address hasn't been set up yet.",
-    "finishSetupButton": "Finish setup",
-    "finishSetupTitle": "Finish setting up your {plan} plan",
     "loadingBilling": "Loading billing…",
     "platformLoginNotice": "Log in to the Vellum platform to manage billing and usage.",
     "usageTab": "Usage"
@@ -772,25 +769,6 @@
     "startSession": "Start Doctor Session",
     "thinking": "Thinking…",
     "title": "Doctor"
-  },
-  "domainField": {
-    "subdomainAriaLabel": "Subdomain"
-  },
-  "domainStep": {
-    "continue": "Continue",
-    "domainLockedMessage": "This domain has been set and cannot be changed.",
-    "domainSetRedirecting": "Domain set - redirecting…",
-    "handleImmutableNotice": "You won't be able to change the handle once set.",
-    "handleLabel": "Handle (public)",
-    "machineBusyNotice": "Your assistant is restarting - you can set the domain in a moment.",
-    "next": "Next",
-    "prefixLabel": "Prefix",
-    "registerSubdomainFailed": "Couldn't register that subdomain. Try a different one.",
-    "skip": "Skip",
-    "subtitle": "Set up an email for your assistant.",
-    "title": "Assistant Email",
-    "emailUsernamePlaceholder": "hi",
-    "subdomainExamplePlaceholder": "my-assistant"
   },
   "downgradeReconfirmModal": {
     "body": "Downgrading removes the following Pro features:",
@@ -1347,6 +1325,10 @@
     "alreadyOnPlanToast": "You're already on this plan.",
     "checkoutFailedToast": "Failed to start the upgrade checkout. Please try again.",
     "current": "Current",
+    "dailyUsageBar": "Daily Usage, resets at {resetPhrase}",
+    "dailyUsageExhausted": "You've used today's free usage. Add credits to keep using your assistant",
+    "dailyUsageResets": "Resets at {resetPhrase}",
+    "dailyUsageTitle": "Daily Usage",
     "endsOn": "Your plan ends on {date}.",
     "freeForever": "Free Forever",
     "heading": "Plan",
@@ -1357,13 +1339,14 @@
     "powerUp": "Power Up",
     "powerUpFor": "Power Up for +{amount}/month",
     "usageBalanceAddCredits": "Add",
-    "usageBalanceBarRenews": "Current Usage, renews on {date}",
-    "usageBalanceBarResets": "Current Usage, resets on {date}",
+    "usageBalanceBarRenews": "Monthly Usage, renews on {date}",
+    "usageBalanceBarResets": "Monthly Usage, resets on {date}",
     "usageBalanceExhausted": "Add credits to continue using your assistant",
     "usageBalancePctUsed": "{pct}% used",
     "usageBalanceRenews": "Renews on {date}",
     "usageBalanceResets": "Resets on {date}",
-    "usageBalanceTitle": "Current Usage",
+    "usageBalanceTitleMonthly": "Monthly Usage",
+    "usageBalanceTitleOverall": "Overall Usage",
     "usageChip": "{name} usage, reset monthly",
     "viewAllPlans": "View All Plans"
   },
@@ -1632,6 +1615,7 @@
     "title": "Modalities"
   },
   "profileRow": {
+    "autoRouting": "Routes each message to Balanced, Quality, Budget, or Fast with Jev, a TypeSafe decision model",
     "actionsAriaLabel": "Actions for {displayName}",
     "defaultTag": "Default",
     "delete": "Delete",
@@ -1987,6 +1971,7 @@
     "confirmAndSwitch": "Confirm & Switch",
     "confirmLabel": "Teleport",
     "confirmMessage": "Your data will be copied to the new environment. The current assistant will remain available until you confirm the new one works.",
+    "confirmWarning": "Chatting won't be available until the teleport finishes.",
     "dockerDescriptionLinux": "Run your assistant in a Docker container on this computer.",
     "dockerDescriptionMacos": "Run your assistant in a Docker container on this Mac.",
     "dockerDescriptionWindows": "Run your assistant in a Docker container on this PC.",
@@ -2032,9 +2017,12 @@
     "teleportFailed": "Teleport failed: {message}",
     "teleportFailedUnknown": "Teleport failed.",
     "title": "Teleport",
+    "transferringNote": "This may take a while. Keep the app open until it finishes.",
+    "transferringTitle": "Teleporting Assistant...",
     "tryAgain": "Try Again",
     "unsupportedDestination": "Unsupported teleport destination.",
-    "verifyTitle": "Transfer complete - verify your new assistant is working."
+    "verifyMessage": "Verify your new assistant is working, then confirm to switch to it.",
+    "verifyTitle": "Transfer complete"
   },
   "textToSpeechCard": {
     "subtitle": "Configure how your assistant speaks",
@@ -2363,6 +2351,10 @@
     "loadingAria": "Loading voice",
     "title": "Voice",
     "titleWithName": "{name}'s Voice"
+  },
+  "voiceStartConfirmationToggle": {
+    "description": "Double-tapping the voice key shows a confirmation first.",
+    "label": "Ask before starting a voice chat"
   },
   "webFetchCard": {
     "apiBaseHint": "Leave empty for the cloud default ({defaultBase}).",

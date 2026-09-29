@@ -37,6 +37,7 @@ import {
   type ResearchFact,
   type ResearchSuggestion,
 } from "@/utils/research-facts";
+import { Button } from "@vellumai/design-library/components/button";
 
 // Once the calendar step blends the background to black, every step from there
 // on sits on a constant dark surface — so their text/UI must be a constant
@@ -260,7 +261,6 @@ export function LookingYouUpStep({
     t("lookingYouUpStep.piecing"),
     t("lookingYouUpStep.almostThere"),
   ];
-  const tone = DARK_TONE;
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -280,7 +280,7 @@ export function LookingYouUpStep({
   }, [index, ready, onDone, onAdvance, lookingMessages.length]);
 
   return (
-    <div className="absolute inset-0 z-10" style={{ color: tone.fg }}>
+    <div className="absolute inset-0 z-10" style={{ color: DARK_TONE.fg }}>
       <OnboardingTopBar onBack={onBack} onNext={onForward} />
       {/* True center of the viewport. The message reserves a fixed min-height
           (two AVATAR_HEADING_CLASS lines) so the row's height — and therefore
@@ -337,7 +337,6 @@ export function FinishingUpStep({
     t("finishingUpStep.gettingIntoCharacter"),
     t("finishingUpStep.almostThere"),
   ];
-  const tone = DARK_TONE;
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -360,7 +359,7 @@ export function FinishingUpStep({
   }, [index, ready, onDone, finishingMessages.length]);
 
   return (
-    <div className="absolute inset-0 z-10" style={{ color: tone.fg }}>
+    <div className="absolute inset-0 z-10" style={{ color: DARK_TONE.fg }}>
       <div className="absolute left-1/2 top-[14%] sm:top-[26%] flex w-full max-w-xl -translate-x-1/2 items-start gap-3 px-6">
         <MiniAssistant isAssistantBusy />
         <AnimatePresence mode="wait">
@@ -508,19 +507,22 @@ export function ResearchResultsStep({
                   }}
                 >
                   <span>{fact.claim}</span>
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="compact"
+                    shape="pill"
+                    iconOnly={<X />}
+                    iconOnlyGlyphClassName="[&_svg]:size-4"
+                    tintColor={tone.fgMuted}
+                    expandOnMobile={false}
                     aria-label={t("researchResultsStep.removeClaim", {
                       claim: fact.claim,
                     })}
                     onClick={() =>
                       setRemoved((prev) => new Set(prev).add(fact.claim))
                     }
-                    className="flex cursor-pointer h-6 w-6 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-100"
-                    style={{ color: tone.fgMuted }}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                    className="shrink-0"
+                  />
                 </motion.div>
               ))}
             </AnimatePresence>

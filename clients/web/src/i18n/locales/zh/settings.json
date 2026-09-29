@@ -328,9 +328,6 @@
   "billingPage": {
     "billingTab": "账单",
     "billingUnavailable": "当前助手状态下无法使用账单功能。",
-    "finishSetupBody": "您的助手电子邮件地址尚未设置。",
-    "finishSetupButton": "完成设置",
-    "finishSetupTitle": "完成 {plan} 套餐的设置",
     "loadingBilling": "加载账单中…",
     "platformLoginNotice": "登录 Vellum 平台以管理账单和用量。",
     "usageTab": "用量"
@@ -765,25 +762,6 @@
     "startSession": "开始诊断会话",
     "thinking": "正在思考…",
     "title": "诊断助手"
-  },
-  "domainField": {
-    "subdomainAriaLabel": "子域名"
-  },
-  "domainStep": {
-    "continue": "继续",
-    "domainLockedMessage": "此域名已设置，无法更改。",
-    "domainSetRedirecting": "域名已设置 - 正在重定向…",
-    "handleImmutableNotice": "设置后，您将无法更改句柄。",
-    "handleLabel": "句柄（公开）",
-    "machineBusyNotice": "您的助手正在重启 - 您稍后即可设置域名。",
-    "next": "下一步",
-    "prefixLabel": "前缀",
-    "registerSubdomainFailed": "无法注册该子域名。请尝试其他子域名。",
-    "skip": "跳过",
-    "subtitle": "为您的助手设置电子邮件。",
-    "title": "助手电子邮件",
-    "emailUsernamePlaceholder": "hi",
-    "subdomainExamplePlaceholder": "my-assistant"
   },
   "downgradeReconfirmModal": {
     "body": "降级将移除以下专业版功能：",
@@ -1273,6 +1251,10 @@
     "alreadyOnPlanToast": "您已是此套餐。",
     "checkoutFailedToast": "未能启动升级结账。请重试。",
     "current": "当前",
+    "dailyUsageBar": "每日使用量，{resetPhrase}重置",
+    "dailyUsageExhausted": "您已用完今日的免费用量。添加点数以继续使用您的助手",
+    "dailyUsageResets": "{resetPhrase}重置",
+    "dailyUsageTitle": "每日使用量",
     "endsOn": "您的套餐将于 {date} 结束。",
     "freeForever": "永久免费",
     "heading": "套餐",
@@ -1283,13 +1265,14 @@
     "powerUp": "升级",
     "powerUpFor": "升级至 +{amount}/月",
     "usageBalanceAddCredits": "添加",
-    "usageBalanceBarRenews": "当前使用量，{date} 续订",
-    "usageBalanceBarResets": "当前使用量，{date} 重置",
+    "usageBalanceBarRenews": "每月使用量，{date} 续订",
+    "usageBalanceBarResets": "每月使用量，{date} 重置",
     "usageBalanceExhausted": "添加点数以继续使用您的助手",
     "usageBalancePctUsed": "已使用 {pct}%",
     "usageBalanceRenews": "{date} 续订",
     "usageBalanceResets": "{date} 重置",
-    "usageBalanceTitle": "当前使用量",
+    "usageBalanceTitleMonthly": "每月使用量",
+    "usageBalanceTitleOverall": "总使用量",
     "usageChip": "{name} 使用量，每月重置",
     "viewAllPlans": "查看所有套餐"
   },
@@ -1526,6 +1509,7 @@
     "title": "模态"
   },
   "profileRow": {
+    "autoRouting": "通过 TypeSafe 的决策模型 Jev，将每条消息路由到 Balanced、Quality、Budget 或 Fast",
     "actionsAriaLabel": "{displayName} 的操作",
     "defaultTag": "默认",
     "delete": "删除",
@@ -1920,7 +1904,7 @@
     "title": "传送",
     "tryAgain": "重试",
     "unsupportedDestination": "不支持的传送目标。",
-    "verifyTitle": "传输完成 - 请验证您的新助手是否正常工作。",
+    "verifyTitle": "传输完成",
     "backupCreateFailed": "云端备份失败（HTTP {status}）。",
     "backupListFailed": "无法获取云端备份列表（HTTP {status}）。",
     "backupLocalFailed": "备份失败（HTTP {status}）。",
@@ -1928,7 +1912,11 @@
     "backupNoSnapshotName": "云端备份未返回快照名称。",
     "backupNotReady": "云端备份 {snapshot} 在 {seconds} 秒后仍未就绪。",
     "backupStep": "正在备份助手...",
-    "backupUnsupported": "此助手在迁移前不支持备份。"
+    "backupUnsupported": "此助手在迁移前不支持备份。",
+    "confirmWarning": "传送完成前将无法聊天。",
+    "transferringNote": "这可能需要一些时间。请保持应用打开，直到传送完成。",
+    "transferringTitle": "正在传送助手...",
+    "verifyMessage": "请验证您的新助手是否正常工作，然后确认切换。"
   },
   "textToSpeechCard": {
     "subtitle": "配置您的助手如何说话",
@@ -2257,6 +2245,10 @@
     "loadingAria": "正在加载语音",
     "title": "语音",
     "titleWithName": "{name} 的语音"
+  },
+  "voiceStartConfirmationToggle": {
+    "description": "连按两次语音键时会先显示确认。",
+    "label": "开始语音聊天前询问"
   },
   "webFetchCard": {
     "apiBaseHint": "留空以使用云默认值 ({defaultBase})。",

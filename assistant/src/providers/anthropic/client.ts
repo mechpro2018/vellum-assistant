@@ -6,6 +6,7 @@ import { ProviderError, type ProviderErrorReason } from "../../util/errors.js";
 import { getLogger } from "../../util/logger.js";
 import {
   DAILY_LIMIT_PATTERNS,
+  FREE_TIER_DAILY_LIMIT_PATTERNS,
   INSUFFICIENT_CREDITS_PATTERNS,
 } from "../../util/provider-error-patterns.js";
 import { extractRetryAfterMs } from "../../util/retry.js";
@@ -154,6 +155,9 @@ export function deriveAnthropicReason(
 
   // The managed proxy's daily-limit 402 shares the status with generic credit
   // exhaustion; match its specific body code first so it isn't swallowed.
+  if (FREE_TIER_DAILY_LIMIT_PATTERNS.some((re) => re.test(haystack))) {
+    return "free_tier_daily_limit_reached";
+  }
   if (DAILY_LIMIT_PATTERNS.some((re) => re.test(haystack))) {
     return "daily_limit_reached";
   }
@@ -1004,7 +1008,7 @@ export class AnthropicProvider implements Provider {
       const isHaiku = effectiveModel.includes("haiku");
       // Effort support is per-model: Haiku and Sonnet 4.5 reject the param (see isEffortSupported).
       const supportsEffort = isEffortSupported(effectiveModel);
-      // opus-4-7 / opus-4-8 / opus-5 / opus-5-5 and sonnet-5 reject `temperature`,
+      // opus-4-7 / opus-4-8 / opus-5 / opus-5-5 and sonnet-5 / sonnet-5-5 reject `temperature`,
       // `top_p`, and `top_k` with a 400 "`temperature`/`top_p` is deprecated
       // for this model" — model-wide, not effort-conditional (verified
       // 2026-06-23). opus-4-6 / sonnet-4-6 / haiku-4-5 still accept them.

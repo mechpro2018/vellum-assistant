@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useLocation } from "react-router";
@@ -13,8 +13,6 @@ import type {
   SubscriptionResponse,
 } from "@/generated/api/types.gen";
 import { avatarQueryKey } from "@/hooks/use-assistant-avatar";
-import { useClientFeatureFlagStore } from "@/stores/client-feature-flag-store";
-import { LS_ASSISTANT_INBOX_HIDDEN } from "@/utils/local-settings-keys";
 
 const ASSISTANT_ID = "assistant-123";
 
@@ -122,73 +120,34 @@ function renderEntitled({ domain }: { domain: AssistantDomain | null }) {
   );
 }
 
-beforeEach(() => {
-  localStorage.removeItem(LS_ASSISTANT_INBOX_HIDDEN);
-});
-
 afterEach(() => {
   cleanup();
-  useClientFeatureFlagStore.setState({ assistantInbox: false });
-  localStorage.removeItem(LS_ASSISTANT_INBOX_HIDDEN);
 });
 
 describe("EmailManagedContent · not entitled", () => {
-  test("keeps the upgrade notice while the inbox flag is off", () => {
-    useClientFeatureFlagStore.setState({ assistantInbox: false });
+  test("draws the inbox's pitch, without a title of its own", () => {
     renderNotEntitled();
 
-    expect(
-      screen.getByText("Give your assistant its own email address"),
-    ).toBeTruthy();
-    expect(screen.queryByText("hi@ada.example.com")).toBeNull();
-  });
-
-  test("draws the inbox's pitch once the flag is on, without a title of its own", () => {
-    useClientFeatureFlagStore.setState({ assistantInbox: true });
-    renderNotEntitled();
-
-    expect(screen.getByText("hi@ada.example.com")).toBeTruthy();
+    // The pitch is the perks and the plan notice; the address itself is
+    // not drawn, the perk about it stands in.
+    expect(screen.getByText("A real address on example.com")).toBeTruthy();
     expect(
       screen.getByText("Your assistant reads, sorts, and replies for you"),
     ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Plans" })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: /Upgrade to Super/ }),
     ).toBeTruthy();
     // The Email section's header introduces the pitch; the body repeats none of it.
     expect(screen.queryByRole("heading")).toBeNull();
-    expect(
-      screen.queryByText("Give your assistant its own email address"),
-    ).toBeNull();
     // Handles live on the platform; with no platform session there is no
     // handle modal to open, so the pitch offers none.
-    expect(screen.queryByRole("button", { name: "Change handle" })).toBeNull();
-    // Nothing to restore: the entry was never hidden.
-    expect(screen.queryByRole("button", { name: "Add it back" })).toBeNull();
-  });
-
-  test("offers the way back when the rail entry was hidden, and takes it", () => {
-    useClientFeatureFlagStore.setState({ assistantInbox: true });
-    localStorage.setItem(LS_ASSISTANT_INBOX_HIDDEN, "1");
-    renderNotEntitled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Add it back" }));
-
-    expect(localStorage.getItem(LS_ASSISTANT_INBOX_HIDDEN)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add it back" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Change handle/ })).toBeNull();
   });
 });
 
 describe("EmailManagedContent · entitled, no address", () => {
-  test("keeps the subdomain form while the inbox flag is off", () => {
-    useClientFeatureFlagStore.setState({ assistantInbox: false });
-    renderEntitled({ domain: null });
-
-    expect(screen.getByRole("button", { name: "Register" })).toBeTruthy();
-    expect(screen.queryByTestId("email-inbox-setup-button")).toBeNull();
-  });
-
-  test("points to the inbox instead of registering a domain once the flag is on", () => {
-    useClientFeatureFlagStore.setState({ assistantInbox: true });
+  test("points to the inbox instead of registering a domain", () => {
     renderEntitled({ domain: null });
 
     expect(
@@ -202,7 +161,6 @@ describe("EmailManagedContent · entitled, no address", () => {
   });
 
   test("with a domain but no address, keeps the domain row and points to the inbox for the address", () => {
-    useClientFeatureFlagStore.setState({ assistantInbox: true });
     renderEntitled({ domain: DOMAIN });
 
     // The domain row, with its release action, is still this page's.
