@@ -464,7 +464,7 @@
     {
       "name": "pm-tenant-maintenance-triage",
       "description": "Triages inbound tenant maintenance requests: classifies severity against habitability rules, routes to the correct vendor trade, and drafts both the vendor dispatch note and the tenant reply for human approval.",
-      "category": "real-estate",
+      "category": "productivity",
       "icon": "\ud83c\udfe2",
       "license": "MIT",
       "homepage": "https://github.com/ZeebBoyBlue/pm-tenant-maintenance-triage",
