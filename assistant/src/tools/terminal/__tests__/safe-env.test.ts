@@ -159,10 +159,26 @@ describe("safe-env Windows forwarding", () => {
     });
 
     expect(windowsEnv.PATH).toBe(
-      "C:\\Windows\\System32;C:\\Program Files\\Vellum",
+      "C:\\Windows\\System32\\WindowsPowerShell\\v1.0;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32;C:\\Program Files\\Vellum",
     );
     expect(windowsEnv.SystemRoot).toBe("C:\\Windows");
     expect(windowsEnv.COMSPEC).toBe("C:\\Windows\\System32\\cmd.exe");
+  });
+
+  test("seeds Windows system directories onto a minimal daemon PATH (sandbox shell regression)", () => {
+    // Regression: the Windows daemon can be launched with a curated PATH that
+    // omits System32\WindowsPowerShell\v1.0 — the only directory
+    // powershell.exe lives in. The sandbox shell tool spawns bare
+    // "powershell.exe", so every shell command failed with
+    // `Executable not found in $PATH: "powershell.exe"`.
+    const env = buildSanitizedEnv("win32", {
+      Path: "C:\\Program Files\\Vellum\\cli\\0.12.6-x;C:\\Windows\\System32;C:\\Windows",
+      SystemRoot: "C:\\WINDOWS",
+    });
+
+    expect(env.PATH).toContain("System32\\WindowsPowerShell\\v1.0");
+    expect(env.PATH).toContain("C:\\WINDOWS\\System32");
+    expect(env.PATH).toContain("C:\\WINDOWS\\System32\\Wbem");
   });
 });
 
