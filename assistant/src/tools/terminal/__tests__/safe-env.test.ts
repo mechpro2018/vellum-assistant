@@ -152,17 +152,26 @@ describe("safe-env Windows forwarding", () => {
   });
 
   test("matches Windows environment names case-insensitively", () => {
-    const windowsEnv = buildSanitizedEnv("win32", {
-      Path: "C:\\Windows\\System32;C:\\Program Files\\Vellum",
-      systemroot: "C:\\Windows",
-      ComSpec: "C:\\Windows\\System32\\cmd.exe",
-    });
+    const dir = mkdtempSync(join(tmpdir(), "win-case-insensitive-"));
+    try {
+      const windowsEnv = buildSanitizedEnv(
+        "win32",
+        {
+          Path: "C:\\Windows\\System32;C:\\Program Files\\Vellum",
+          systemroot: "C:\\Windows",
+          ComSpec: "C:\\Windows\\System32\\cmd.exe",
+        },
+        { execPath: join(dir, "vellum-daemon.exe") },
+      );
 
-    expect(windowsEnv.PATH).toBe(
-      "C:\\Windows\\System32\\WindowsPowerShell\\v1.0;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32;C:\\Program Files\\Vellum",
-    );
-    expect(windowsEnv.SystemRoot).toBe("C:\\Windows");
-    expect(windowsEnv.COMSPEC).toBe("C:\\Windows\\System32\\cmd.exe");
+      expect(windowsEnv.PATH).toBe(
+        "C:\\Windows\\System32\\WindowsPowerShell\\v1.0;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32;C:\\Program Files\\Vellum",
+      );
+      expect(windowsEnv.SystemRoot).toBe("C:\\Windows");
+      expect(windowsEnv.COMSPEC).toBe("C:\\Windows\\System32\\cmd.exe");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test("seeds Windows system directories onto a minimal daemon PATH (sandbox shell regression)", () => {

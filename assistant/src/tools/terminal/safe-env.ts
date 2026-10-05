@@ -7,7 +7,7 @@
  */
 import { readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, win32 } from "node:path";
 
 import {
   pathListDelimiter,
@@ -362,9 +362,9 @@ export function buildSanitizedEnv(
     env.PATH = prependUniquePathEntries(
       env.PATH,
       [
-        join(systemRoot, "System32", "WindowsPowerShell", "v1.0"),
-        join(systemRoot, "System32"),
-        join(systemRoot, "System32", "Wbem"),
+        win32.join(systemRoot, "System32", "WindowsPowerShell", "v1.0"),
+        win32.join(systemRoot, "System32"),
+        win32.join(systemRoot, "System32", "Wbem"),
       ],
       hostPlatform,
     );
